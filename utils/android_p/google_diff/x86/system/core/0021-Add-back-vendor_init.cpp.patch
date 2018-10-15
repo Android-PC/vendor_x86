@@ -1,7 +1,7 @@
 From 14f5175d34d817122f93b676feb96a7c7a74bf81 Mon Sep 17 00:00:00 2001
 From: Jon West <electrikjesus@gmail.com>
 Date: Wed, 26 Sep 2018 14:03:04 -0400
-Subject: [PATCH 21/25] Add back vendor_init.cpp
+Subject: [PATCH 21/30] Add back vendor_init.cpp
 
 Change-Id: Id4e6aa5629ea1776abd9ec6e5df38274df8accac
 ---

@@ -1,7 +1,7 @@
 From 3ccaaa64e8226bec17b99af17dfd9bc4a8473e72 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Wed, 26 Sep 2018 16:51:28 -0400
-Subject: [PATCH 22/25] Mount debugfs earlier regardless build variant
+Subject: [PATCH 22/30] Mount debugfs earlier regardless build variant
 
 ag/835596 can be reverted after this CL is merged.
 

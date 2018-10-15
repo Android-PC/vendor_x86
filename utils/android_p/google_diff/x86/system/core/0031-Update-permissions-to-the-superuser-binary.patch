@@ -1,0 +1,34 @@
+From bb5edf46f71aae691615752df4fdc36f6e450a6f Mon Sep 17 00:00:00 2001
+From: Ricardo Cerqueira <ricardo@cyngn.com>
+Date: Wed, 26 Nov 2014 21:49:52 +0000
+Subject: [PATCH] Update permissions to the superuser binary
+
+Change-Id: Ia382c74854cfbe625653b8b6b016b37f93132658
+
+Conflicts:
+	libcutils/fs_config.cpp
+---
+ libcutils/fs_config.cpp | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libcutils/fs_config.cpp b/libcutils/fs_config.cpp
+index 84d1811488..ca1f0cc923 100644
+--- a/libcutils/fs_config.cpp
++++ b/libcutils/fs_config.cpp
+@@ -173,10 +173,10 @@ static const struct fs_path_config android_files[] = {
+     { 00444, AID_ROOT,      AID_ROOT,      0, ven_conf_dir + 1 },
+     { 00444, AID_ROOT,      AID_ROOT,      0, ven_conf_file + 1 },
+ 
+-    // the following two files are INTENTIONALLY set-uid, but they
+-    // are NOT included on user builds.
++    // the following file is INTENTIONALLY set-uid, but it
++    // is NOT included on user builds.
+     { 06755, AID_ROOT,      AID_ROOT,      0, "system/xbin/procmem" },
+-    { 04751, AID_ROOT,      AID_SHELL,     0, "system/xbin/su" },
++    { 00755, AID_ROOT,      AID_SHELL,     0, "system/xbin/su" },
+ 
+     // the following files have enhanced capabilities and ARE included
+     // in user builds.
+-- 
+2.17.1
+

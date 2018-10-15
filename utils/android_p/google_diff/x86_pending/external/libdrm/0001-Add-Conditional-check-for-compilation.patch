@@ -1,0 +1,35 @@
+From 3b298c61327d6715325666096890e434b8c7f8cd Mon Sep 17 00:00:00 2001
+From: Kishore Kadiyala <kishore.kadiyala@intel.com>
+Date: Mon, 14 Aug 2017 14:57:08 +0530
+Subject: [PATCH 1/5] Add Conditional check for compilation
+
+Signed-off-by: Kishore Kadiyala <kishore.kadiyala@intel.com>
+
+Conflicts:
+	Android.mk
+
+Change-Id: I406fdf85315b0c88ad3c48c8e646db06c050850c
+---
+ Android.mk | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Android.mk b/Android.mk
+index df0275ec..c0d7cad6 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -25,6 +25,7 @@
+ # libdrm: for vendors. installed to /vendor/lib. libdrm_<vendor> uses this.
+ # libdrm_platform: for platform modules (such as libminui). installed to /system/lib
+ 
++ifeq ($(LIBDRM_VER),intel)
+ LIBDRM_COMMON_MK := $(call my-dir)/Android.common.mk
+ 
+ LOCAL_PATH := $(call my-dir)
+@@ -106,3 +107,4 @@ include $(LIBDRM_COMMON_MK)
+ include $(BUILD_SHARED_LIBRARY)
+ 
+ include $(call all-makefiles-under,$(LOCAL_PATH))
++endif
+-- 
+2.17.1
+

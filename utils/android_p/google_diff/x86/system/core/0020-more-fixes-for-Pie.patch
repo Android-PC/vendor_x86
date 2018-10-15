@@ -1,7 +1,7 @@
 From 85c6fad0fbe1ddfbd968898076656f4d732307ee Mon Sep 17 00:00:00 2001
 From: Jon West <electrikjesus@gmail.com>
 Date: Mon, 24 Sep 2018 21:14:10 -0400
-Subject: [PATCH 20/25] more fixes for Pie
+Subject: [PATCH 20/30] more fixes for Pie
 
 Change-Id: I40e7f5d75305e0eba100df43dbd836afdd6f3796
 ---

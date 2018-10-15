@@ -1,7 +1,7 @@
 From 2d62ea77ba51bd3cb173cce99b500f4ee59f04bb Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Mon, 3 Nov 2014 23:06:02 +0800
-Subject: [PATCH 05/25] Allow all to execute su
+Subject: [PATCH 05/30] Allow all to execute su
 
 Let the Superuser app control how su is used.
 ---

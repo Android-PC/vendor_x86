@@ -1,7 +1,7 @@
 From f3ab3c7a95d48f253ae3e67ffd40c517bc19fc40 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Sun, 16 Jan 2011 06:44:37 +0800
-Subject: [PATCH 01/25] ueventd.rc: remove redundant definitions
+Subject: [PATCH 01/30] ueventd.rc: remove redundant definitions
 
 Change-Id: Icb4f051abf941052aca9752ca2949386738d94e5
 ---

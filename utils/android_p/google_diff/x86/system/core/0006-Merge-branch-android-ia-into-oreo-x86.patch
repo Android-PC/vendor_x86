@@ -1,7 +1,7 @@
 From 79aa49e272f76778a445caab66e6244166033c6b Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Mon, 11 Dec 2017 14:43:57 +0800
-Subject: [PATCH 06/25] Merge branch 'android-ia' into oreo-x86
+Subject: [PATCH 06/30] Merge branch 'android-ia' into oreo-x86
 
 Conflicts:
 	adb/transport_local.cpp

@@ -1,0 +1,80 @@
+From c8790009e93ae0413751bb312c0786db3fb5a1c9 Mon Sep 17 00:00:00 2001
+From: Mark Salyzyn <salyzyn@google.com>
+Date: Wed, 6 Jun 2018 13:51:16 -0700
+Subject: [PATCH 26/30] fs_mgr: avb should use built-in kernel command line
+ parser
+
+Switch from open-coded parsing of /proc/cmdline to built-in
+fs_mgr_get_boot_config_from_kernel_cmdline function.
+
+Test: compile and smoke boot test
+Bug: 109821005
+Change-Id: I935d2e76c76ad417cbcee398e2afbf9b061d1719
+Merged-In: I935d2e76c76ad417cbcee398e2afbf9b061d1719
+(cherry picked from commit 346c52e9728e1dc1b2ccc25d60873a9759aebb36)
+---
+ fs_mgr/fs_mgr_avb.cpp | 31 +++++++++----------------------
+ 1 file changed, 9 insertions(+), 22 deletions(-)
+
+diff --git a/fs_mgr/fs_mgr_avb.cpp b/fs_mgr/fs_mgr_avb.cpp
+index 7824cfa70d..be6ff1f011 100644
+--- a/fs_mgr/fs_mgr_avb.cpp
++++ b/fs_mgr/fs_mgr_avb.cpp
+@@ -139,38 +139,23 @@ class FsManagerAvbVerifier {
+ };
+ 
+ std::unique_ptr<FsManagerAvbVerifier> FsManagerAvbVerifier::Create() {
+-    std::string cmdline;
+-    if (!android::base::ReadFileToString("/proc/cmdline", &cmdline)) {
+-        PERROR << "Failed to read /proc/cmdline";
+-        return nullptr;
+-    }
+-
+     std::unique_ptr<FsManagerAvbVerifier> avb_verifier(new FsManagerAvbVerifier());
+     if (!avb_verifier) {
+         LERROR << "Failed to create unique_ptr<FsManagerAvbVerifier>";
+         return nullptr;
+     }
+ 
+-    std::string digest;
+-    std::string hash_alg;
+-    for (const auto& entry : android::base::Split(android::base::Trim(cmdline), " ")) {
+-        std::vector<std::string> pieces = android::base::Split(entry, "=");
+-        const std::string& key = pieces[0];
+-        const std::string& value = pieces[1];
+-
+-        if (key == "androidboot.vbmeta.hash_alg") {
+-            hash_alg = value;
+-        } else if (key == "androidboot.vbmeta.size") {
+-            if (!android::base::ParseUint(value.c_str(), &avb_verifier->vbmeta_size_)) {
+-                return nullptr;
+-            }
+-        } else if (key == "androidboot.vbmeta.digest") {
+-            digest = value;
+-        }
++    std::string value;
++    if (!fs_mgr_get_boot_config_from_kernel_cmdline("vbmeta.size", &value) ||
++        !android::base::ParseUint(value.c_str(), &avb_verifier->vbmeta_size_)) {
++        LERROR << "Invalid hash size: " << value.c_str();
++        return nullptr;
+     }
+ 
+     // Reads hash algorithm.
+     size_t expected_digest_size = 0;
++    std::string hash_alg;
++    fs_mgr_get_boot_config_from_kernel_cmdline("vbmeta.hash_alg", &hash_alg);
+     if (hash_alg == "sha256") {
+         expected_digest_size = SHA256_DIGEST_LENGTH * 2;
+         avb_verifier->hash_alg_ = kSHA256;
+@@ -183,6 +168,8 @@ std::unique_ptr<FsManagerAvbVerifier> FsManagerAvbVerifier::Create() {
+     }
+ 
+     // Reads digest.
++    std::string digest;
++    fs_mgr_get_boot_config_from_kernel_cmdline("vbmeta.digest", &digest);
+     if (digest.size() != expected_digest_size) {
+         LERROR << "Unexpected digest size: " << digest.size()
+                << " (expected: " << expected_digest_size << ")";
+-- 
+2.17.1
+

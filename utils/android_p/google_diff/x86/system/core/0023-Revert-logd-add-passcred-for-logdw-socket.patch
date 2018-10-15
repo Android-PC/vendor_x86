@@ -1,7 +1,7 @@
 From fb82fade412a4e14caf33a5168f1f2504a4d7e54 Mon Sep 17 00:00:00 2001
 From: Pierre-Hugues Husson <phh@phh.me>
 Date: Sun, 10 Dec 2017 00:26:21 +0100
-Subject: [PATCH 23/25] Revert "logd: add "+passcred" for logdw socket"
+Subject: [PATCH 23/30] Revert "logd: add "+passcred" for logdw socket"
 
 This reverts commit 54d8ff1121440d0ef4565ce0ab3751f82fdb393c.
 

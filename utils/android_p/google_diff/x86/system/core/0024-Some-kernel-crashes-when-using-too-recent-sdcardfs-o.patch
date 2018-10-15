@@ -1,7 +1,7 @@
 From 30c7c21c3def86c48db7044b7b8cf73dffbdc22e Mon Sep 17 00:00:00 2001
 From: Pierre-Hugues Husson <phh@phh.me>
 Date: Tue, 14 Aug 2018 19:33:03 +0200
-Subject: [PATCH 24/25] Some kernel crashes when using too recent sdcardfs
+Subject: [PATCH 24/30] Some kernel crashes when using too recent sdcardfs
  options. Force everyone to old options
 
 Change-Id: Ia5cf1aa8dc07a0f4a78b4d8f760ca0944dabaa89
