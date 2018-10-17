@@ -1,0 +1,27 @@
+From 38cb1b44ee6526fff3a722ae94edc18b4163121a Mon Sep 17 00:00:00 2001
+From: Jon West <electrikjesus@gmail.com>
+Date: Mon, 24 Sep 2018 20:43:42 -0400
+Subject: [PATCH 23/29] remove invalid get_wakelock call
+
+Change-Id: I3f0d8c1dd82b94bfb6d3cde7e1f76387b587f191
+---
+ adb/transport_local.cpp | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/adb/transport_local.cpp b/adb/transport_local.cpp
+index 40f4ca3047..560a0312b5 100644
+--- a/adb/transport_local.cpp
++++ b/adb/transport_local.cpp
+@@ -231,9 +231,6 @@ static void server_socket_thread(int port) {
+         fd = adb_socket_accept(serverfd, nullptr, nullptr);
+         if(fd >= 0) {
+             D("server: new connection on fd %d", fd);
+-#if !ADB_HOST
+-            get_wakelock();
+-#endif
+             close_on_exec(fd);
+             disable_tcp_nagle(fd);
+             std::string serial = android::base::StringPrintf("host-%d", fd);
+-- 
+2.17.1
+

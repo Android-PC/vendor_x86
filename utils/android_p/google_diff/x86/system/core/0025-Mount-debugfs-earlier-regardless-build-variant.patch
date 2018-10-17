@@ -1,0 +1,40 @@
+From 71f133ae0271a641e921d798385688e4d51fdbfb Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Wed, 26 Sep 2018 16:51:28 -0400
+Subject: [PATCH 25/29] Mount debugfs earlier regardless build variant
+
+ag/835596 can be reverted after this CL is merged.
+
+BUG:26455292
+Change-Id: I453b0f1d08d822f8cd2d4d33f1c1b21f0d7f543a
+
+init.rc: symlink /lib to /system/lib
+
+Currently more linux drivers use request_firmware_nowait() to load
+firmwares. It requires the firmwares exist in the standard path.
+
+Create the symlink before ueventd started to ensure firmwares
+could be loaded correctly.
+---
+ rootdir/init.rc | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 69c8156cfa..0f4ac590c5 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -36,6 +36,11 @@ on early-init
+     # cgroup for system_server and surfaceflinger
+     mkdir /dev/memcg/system 0550 system system
+ 
++    mount debugfs /sys/kernel/debug /sys/kernel/debug mode=755
++
++    # for /lib/firmware
++    symlink system/lib /lib
++
+     start ueventd
+ 
+ on init
+-- 
+2.17.1
+

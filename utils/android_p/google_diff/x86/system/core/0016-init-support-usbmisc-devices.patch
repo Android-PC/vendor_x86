@@ -1,0 +1,45 @@
+From 15495fd335ceac1edd85d83601c6e9c99f6aea70 Mon Sep 17 00:00:00 2001
+From: Roman Petrovski <roman.petrovski@gmail.com>
+Date: Sat, 11 Jun 2016 03:50:00 +0800
+Subject: [PATCH 16/29] init: support usbmisc devices
+
+The patch allows to create usbmisc device nodes like /dev/cdc-wdm0.
+
+Conflicts:
+	init/devices.cpp
+
+Change-Id: Ibe3b5b55d5acebaf08263f2b5721e59231175b09
+---
+ init/devices.cpp | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/init/devices.cpp b/init/devices.cpp
+index ada1e2870e..27860b44d9 100644
+--- a/init/devices.cpp
++++ b/init/devices.cpp
+@@ -392,6 +392,22 @@ void DeviceHandler::HandleDeviceEvent(const Uevent& uevent) {
+         if (StartsWith(uevent.path, "/devices")) {
+             links = GetBlockDeviceSymlinks(uevent);
+         }
++    } else if (StartsWith(uevent.subsystem, "usb")) {
++        if (uevent.subsystem == "usb" || uevent.subsystem == "usbmisc") {
++            if (!uevent.device_name.empty()) {
++                devpath = "/dev/" + uevent.device_name;
++            } else {
++                // This imitates the file system that would be created
++                // if we were using devfs instead.
++                // Minors are broken up into groups of 128, starting at "001"
++                int bus_id = uevent.minor / 128 + 1;
++                int device_id = uevent.minor % 128 + 1;
++                devpath = StringPrintf("/dev/bus/usb/%03d/%03d", bus_id, device_id);
++            }
++        } else {
++            // ignore other USB events
++            return;
++        }
+     } else if (const auto subsystem =
+                    std::find(subsystems_.cbegin(), subsystems_.cend(), uevent.subsystem);
+                subsystem != subsystems_.cend()) {
+-- 
+2.17.1
+

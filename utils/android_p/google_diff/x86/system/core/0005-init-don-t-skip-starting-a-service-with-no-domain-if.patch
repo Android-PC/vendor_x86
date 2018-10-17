@@ -1,0 +1,41 @@
+From 218708a7e01555e9b0af9e4e49e45b7bb6c1fe2c Mon Sep 17 00:00:00 2001
+From: William Bellavance <flintman@flintmancomputers.com>
+Date: Tue, 30 Aug 2016 08:04:38 -0400
+Subject: [PATCH 05/29] init: don't skip starting a service with no domain if
+ permissive
+
+Requires external/libselinux change as well
+
+Change-Id: I3f2887930e15d09014c2594141ba4acbbc8d6d9d
+---
+ init/service.cpp | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/init/service.cpp b/init/service.cpp
+index 37d3a8807e..300f9830d4 100644
+--- a/init/service.cpp
++++ b/init/service.cpp
+@@ -90,11 +90,19 @@ static Result<std::string> ComputeContextFromExecutable(const std::string& servi
+         free(new_con);
+     }
+     if (rc == 0 && computed_context == mycon.get()) {
+-        return Error() << "File " << service_path << "(labeled \"" << filecon.get()
++        if (selinux_status_getenforce() > 0) {
++            return Error() << "File " << service_path << "(labeled \"" << filecon.get()
++                           << "\") has incorrect label or no domain transition from " << mycon.get()
++                           << " to another SELinux domain defined. Have you configured your "
++                              "service correctly? https://source.android.com/security/selinux/"
++                              "device-policy#label_new_services_and_address_denials";
++        }else{
++            LOG(ERROR) << "File " << service_path << "(labeled \"" << filecon.get()
+                        << "\") has incorrect label or no domain transition from " << mycon.get()
+                        << " to another SELinux domain defined. Have you configured your "
+                           "service correctly? https://source.android.com/security/selinux/"
+                           "device-policy#label_new_services_and_address_denials";
++        }
+     }
+     if (rc < 0) {
+         return Error() << "Could not get process context";
+-- 
+2.17.1
+

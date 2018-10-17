@@ -1,0 +1,53 @@
+From c62ce1d8e3c8042f685dc400b20cb587dc97d396 Mon Sep 17 00:00:00 2001
+From: Adnan Begovic <adnan@cyngn.com>
+Date: Tue, 13 Oct 2015 16:28:49 -0700
+Subject: [PATCH 08/29] logcat: Map '-C' to 'logcat -v color'
+
+Change-Id: I0419f4551a6dfd77c7d4833050b36da28113ed9b
+---
+ logcat/logcat.cpp | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/logcat/logcat.cpp b/logcat/logcat.cpp
+index ff85f546a9..54bb55b1b0 100644
+--- a/logcat/logcat.cpp
++++ b/logcat/logcat.cpp
+@@ -489,6 +489,7 @@ static void show_help(android_logcat_context_internal* context) {
+                     "                  other pruning activity is oldest first. Special case ~!\n"
+                     "                  represents an automatic quicker pruning for the noisiest\n"
+                     "                  UID as determined by the current statistics.\n"
++                    "  -C              colored output\n"
+                     "  -P '<list> ...', --prune='<list> ...'\n"
+                     "                  Set prune white and ~black list, using same format as\n"
+                     "                  listed above. Must be quoted.\n"
+@@ -879,6 +880,7 @@ static int __logcat(android_logcat_context_internal* context) {
+           { "dividers",      no_argument,       nullptr, 'D' },
+           { "file",          required_argument, nullptr, 'f' },
+           { "format",        required_argument, nullptr, 'v' },
++          { "color",         no_argument,       NULL,   'C' },
+           // hidden and undocumented reserved alias for --regex
+           { "grep",          required_argument, nullptr, 'e' },
+           // hidden and undocumented reserved alias for --max-count
+@@ -902,7 +904,7 @@ static int __logcat(android_logcat_context_internal* context) {
+         };
+         // clang-format on
+ 
+-        ret = getopt_long_r(argc, argv, ":cdDhLt:T:gG:sQf:r:n:v:b:BSpP:m:e:",
++        ret = getopt_long_r(argc, argv, ":cdDhLt:T:gG:sQf:r:n:v:b:BSpCP:m:e:",
+                             long_options, &option_index, &optctx);
+         if (ret < 0) break;
+ 
+@@ -1081,6 +1083,10 @@ static int __logcat(android_logcat_context_internal* context) {
+                 setPruneList = optctx.optarg;
+                 break;
+ 
++            case 'C':
++                setLogFormat(context, "color");
++            break;
++
+             case 'b': {
+                 std::unique_ptr<char, void (*)(void*)> buffers(
+                     strdup(optctx.optarg), free);
+-- 
+2.17.1
+

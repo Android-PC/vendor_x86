@@ -1,0 +1,22 @@
+From f433fff90252b5b43ea95024730df9ff691bbb6a Mon Sep 17 00:00:00 2001
+From: beanstown106 <nbenis106@gmail.com>
+Date: Sat, 26 Dec 2015 10:57:00 -0500
+Subject: [PATCH 03/29] Disable flashing of stock recovery correctly
+
+Change-Id: I73e3fbd652189146335af0bc7fb0c6323ed3787e
+---
+ rootdir/init.rc | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 13c5a07fd4..e96a807a22 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -767,3 +767,4 @@ on property:ro.debuggable=1
+ service flash_recovery /system/bin/install-recovery.sh
+     class main
+     oneshot
++    disabled
+-- 
+2.17.1
+

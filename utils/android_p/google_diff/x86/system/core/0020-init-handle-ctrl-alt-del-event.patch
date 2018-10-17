@@ -1,0 +1,33 @@
+From f3ec9858e753491218d1ee0d1a0608eb36d2369a Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Mon, 20 Nov 2017 16:50:20 +0800
+Subject: [PATCH 20/29] init: handle ctrl-alt-del event
+
+By setting /proc/sys/kernel/ctrl-alt-del to 1, kernel will trap
+ctrl-alt-del event and send a SIGINT signal to init.
+
+Start the ctrl-alt-del service on receiving the signal.
+---
+ init/init.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/init/init.cpp b/init/init.cpp
+index 9b2f2a1fdc..4cbe208a25 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -490,6 +490,12 @@ static void InstallRebootSignalHandlers() {
+ #endif
+     sigaction(SIGSYS, &action, nullptr);
+     sigaction(SIGTRAP, &action, nullptr);
++
++    action.sa_handler = [](int sig) {
++        LOG(INFO) << "Got ctrl-alt-del: " << sig;
++        handle_control_message("start", "ctrl-alt-del");
++    };
++    sigaction(SIGINT, &action, nullptr);
+ }
+ 
+ static void HandleSigtermSignal() {
+-- 
+2.17.1
+

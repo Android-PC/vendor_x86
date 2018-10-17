@@ -1,0 +1,151 @@
+From 28f571a20cf2a95f15962fa1fef02d1c59f81560 Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Mon, 11 Dec 2017 14:43:57 +0800
+Subject: [PATCH 13/29] Merge branch 'android-ia' into oreo-x86
+
+Conflicts:
+	adb/transport_local.cpp
+	init/uevent_listener.cpp
+
+Change-Id: I7b75ab6c587cc7452647c6863d2657d89c9426e3
+---
+ adb/transport_local.cpp    |  3 +++
+ init/uevent_listener.cpp   |  4 ++--
+ libdiskconfig/config_mbr.c |  4 ++--
+ libdiskconfig/diskconfig.c |  2 +-
+ libdiskconfig/diskutils.c  |  5 ++++-
+ toolbox/newfs_msdos.c      | 11 ++++++++---
+ 6 files changed, 20 insertions(+), 9 deletions(-)
+
+diff --git a/adb/transport_local.cpp b/adb/transport_local.cpp
+index 560a0312b5..40f4ca3047 100644
+--- a/adb/transport_local.cpp
++++ b/adb/transport_local.cpp
+@@ -231,6 +231,9 @@ static void server_socket_thread(int port) {
+         fd = adb_socket_accept(serverfd, nullptr, nullptr);
+         if(fd >= 0) {
+             D("server: new connection on fd %d", fd);
++#if !ADB_HOST
++            get_wakelock();
++#endif
+             close_on_exec(fd);
+             disable_tcp_nagle(fd);
+             std::string serial = android::base::StringPrintf("host-%d", fd);
+diff --git a/init/uevent_listener.cpp b/init/uevent_listener.cpp
+index 24b14c44dc..0df880cc62 100644
+--- a/init/uevent_listener.cpp
++++ b/init/uevent_listener.cpp
+@@ -83,8 +83,8 @@ static void ParseEvent(const char* msg, Uevent* uevent) {
+ }
+ 
+ UeventListener::UeventListener() {
+-    // is 2MB enough? udev uses 128MB!
+-    device_fd_.reset(uevent_open_socket(2 * 1024 * 1024, true));
++    // is 8MB enough? udev uses 16MB!
++    device_fd_.reset(uevent_open_socket(8 * 1024 * 1024, true));
+     if (device_fd_ == -1) {
+         LOG(FATAL) << "Could not open uevent socket";
+     }
+diff --git a/libdiskconfig/config_mbr.c b/libdiskconfig/config_mbr.c
+index ace9bbfb1e..a0fe1c343b 100644
+--- a/libdiskconfig/config_mbr.c
++++ b/libdiskconfig/config_mbr.c
+@@ -259,11 +259,11 @@ config_mbr(struct disk_info *dinfo)
+         }
+ 
+         /* if extended, need 1 lba for ebr */
+-        if ((cur_lba + extended) >= dinfo->num_lba)
++        if (dinfo->num_lba && (cur_lba + extended) >= dinfo->num_lba)
+             goto nospace;
+         else if (pinfo->len_kb != (uint32_t)-1) {
+             uint32_t sz_lba = (pinfo->len_kb / dinfo->sect_size) * 1024;
+-            if ((cur_lba + sz_lba + extended) > dinfo->num_lba)
++            if (dinfo->num_lba && (cur_lba + sz_lba + extended) > dinfo->num_lba)
+                 goto nospace;
+         }
+ 
+diff --git a/libdiskconfig/diskconfig.c b/libdiskconfig/diskconfig.c
+index c7e1b43745..70ce85c1d6 100644
+--- a/libdiskconfig/diskconfig.c
++++ b/libdiskconfig/diskconfig.c
+@@ -74,7 +74,7 @@ parse_len(const char *str, uint64_t *plen)
+         }
+     } else {
+         /* convert len to kilobytes */
+-        if (multiple > 1024)
++        if (multiple >= 1024)
+             multiple >>= 10;
+         *plen *= multiple;
+ 
+diff --git a/libdiskconfig/diskutils.c b/libdiskconfig/diskutils.c
+index fe1b4c180a..3b73d5e0e8 100644
+--- a/libdiskconfig/diskutils.c
++++ b/libdiskconfig/diskutils.c
+@@ -36,6 +36,7 @@ write_raw_image(const char *dst, const char *src, loff_t offset, int test)
+     int dst_fd = -1;
+     int src_fd = -1;
+     uint8_t buffer[2048];
++    ssize_t buf_offset;
+     ssize_t nr_bytes;
+     ssize_t tmp;
+     int done = 0;
+@@ -80,8 +81,9 @@ write_raw_image(const char *dst, const char *src, loff_t offset, int test)
+         if (test)
+             nr_bytes = 0;
+ 
++        buf_offset = 0;
+         while (nr_bytes > 0) {
+-            if ((tmp = write(dst_fd, buffer, nr_bytes)) < 0) {
++            if ((tmp = write(dst_fd, &buffer[buf_offset], nr_bytes)) < 0) {
+                 /* XXX: Should we not even bother with EINTR? */
+                 if (errno == EINTR)
+                     continue;
+@@ -91,6 +93,7 @@ write_raw_image(const char *dst, const char *src, loff_t offset, int test)
+             if (!tmp)
+                 continue;
+             nr_bytes -= tmp;
++            buf_offset += tmp;
+         }
+     }
+ 
+diff --git a/toolbox/newfs_msdos.c b/toolbox/newfs_msdos.c
+index d7047e2c47..eb2cfbdc4a 100644
+--- a/toolbox/newfs_msdos.c
++++ b/toolbox/newfs_msdos.c
+@@ -249,7 +249,7 @@ int newfs_msdos_main(int argc, char *argv[])
+     char buf[MAXPATHLEN];
+     struct stat sb;
+     struct timeval tv;
+-    struct bpb bpb;
++    struct bpb bpb, tempbpb;
+     struct tm *tm;
+     struct bs *bs;
+     struct bsbpb *bsbpb;
+@@ -553,6 +553,7 @@ int newfs_msdos_main(int argc, char *argv[])
+     set_spf = !bpb.bspf;
+     set_spc = !bpb.spc;
+     tempx = x;
++    memset(&tempbpb, 0, sizeof(bpb));
+     /*
+      * Attempt to align if opt_A is set. This is done by increasing the number
+      * of reserved blocks. This can cause other factors to change, which can in
+@@ -600,10 +601,14 @@ int newfs_msdos_main(int argc, char *argv[])
+             alignment = (bpb.res + bpb.bspf * bpb.nft) % bpb.spc;
+             extra_res += bpb.spc - alignment;
+         }
+-        attempts++;
++        if (++attempts == 1)
++            memcpy(&tempbpb, &bpb, sizeof(bpb));
+     } while(opt_A && alignment != 0 && attempts < 2);
+-    if (alignment != 0)
++    if (alignment != 0) {
+         warnx("warning: Alignment failed.");
++        /* return to data from first iteration */
++        memcpy(&bpb, &tempbpb, sizeof(bpb));
++    }
+ 
+     cls = (bpb.bsec - x1) / bpb.spc;
+     x = (u_int64_t)bpb.bspf * bpb.bps * NPB / (fat / BPN) - RESFTE;
+-- 
+2.17.1
+

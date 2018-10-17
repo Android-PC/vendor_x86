@@ -1,0 +1,27 @@
+From 1601c58e9d119b31ffcfaf0e5948cc7a92667813 Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Sun, 16 Jan 2011 06:44:37 +0800
+Subject: [PATCH 09/29] ueventd.rc: remove redundant definitions
+
+Change-Id: Icb4f051abf941052aca9752ca2949386738d94e5
+---
+ rootdir/ueventd.rc | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/rootdir/ueventd.rc b/rootdir/ueventd.rc
+index 2f85dec071..153d7e5507 100644
+--- a/rootdir/ueventd.rc
++++ b/rootdir/ueventd.rc
+@@ -110,9 +110,6 @@ subsystem sound
+ /dev/htc-acoustic         0660   system     audio
+ /dev/vdec                 0660   system     audio
+ /dev/q6venc               0660   system     audio
+-/dev/snd/dsp              0660   system     audio
+-/dev/snd/dsp1             0660   system     audio
+-/dev/snd/mixer            0660   system     audio
+ /dev/smd0                 0640   radio      radio
+ /dev/qmi                  0640   radio      radio
+ /dev/qmi0                 0640   radio      radio
+-- 
+2.17.1
+
