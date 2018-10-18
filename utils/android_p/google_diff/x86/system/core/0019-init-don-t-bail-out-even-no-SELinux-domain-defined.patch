@@ -1,7 +1,7 @@
-From 6f933b78567a5053988049cc5dee13237857f309 Mon Sep 17 00:00:00 2001
+From c20f5e87e0a4af0b32818703823da5e597fd357a Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Tue, 12 Sep 2017 16:22:04 +0800
-Subject: [PATCH 19/32] init: don't bail out even no SELinux domain defined
+Subject: [PATCH 19/28] init: don't bail out even no SELinux domain defined
 
 Conflicts:
 	init/service.cpp

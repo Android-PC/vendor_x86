@@ -1,7 +1,7 @@
-From 6fa9dde033f3f63f6f7860b2d06efe3cbe80d3b2 Mon Sep 17 00:00:00 2001
+From 22afed4910a10d68b872040fb2936982655ead73 Mon Sep 17 00:00:00 2001
 From: Jon West <electrikjesus@gmail.com>
 Date: Mon, 24 Sep 2018 20:43:42 -0400
-Subject: [PATCH 24/32] remove invalid get_wakelock call
+Subject: [PATCH 25/28] remove invalid get_wakelock call
 
 Change-Id: I3f0d8c1dd82b94bfb6d3cde7e1f76387b587f191
 ---

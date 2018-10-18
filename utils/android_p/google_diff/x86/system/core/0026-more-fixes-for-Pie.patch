@@ -1,7 +1,7 @@
-From 825e301e82d0cdf55d3aaf0615ae7413c362b04b Mon Sep 17 00:00:00 2001
+From a87d6955f4305c42ef044ecb24acbcdc148a94c8 Mon Sep 17 00:00:00 2001
 From: Jon West <electrikjesus@gmail.com>
 Date: Mon, 24 Sep 2018 21:14:10 -0400
-Subject: [PATCH 25/32] more fixes for Pie
+Subject: [PATCH 26/28] more fixes for Pie
 
 Change-Id: I40e7f5d75305e0eba100df43dbd836afdd6f3796
 ---

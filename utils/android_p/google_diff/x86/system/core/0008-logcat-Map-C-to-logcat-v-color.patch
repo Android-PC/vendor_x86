@@ -1,7 +1,7 @@
-From 5cb3859bb64f845fd2c6a9c91c2df627d9613c53 Mon Sep 17 00:00:00 2001
+From 42b15bfd745b2e828c2e01c111466d63d5093b05 Mon Sep 17 00:00:00 2001
 From: Adnan Begovic <adnan@cyngn.com>
 Date: Tue, 13 Oct 2015 16:28:49 -0700
-Subject: [PATCH 08/32] logcat: Map '-C' to 'logcat -v color'
+Subject: [PATCH 08/28] logcat: Map '-C' to 'logcat -v color'
 
 Change-Id: I0419f4551a6dfd77c7d4833050b36da28113ed9b
 ---

@@ -1,7 +1,7 @@
-From 386c69bf64208a5648387dd988d579f62d82c971 Mon Sep 17 00:00:00 2001
+From b3d22652fc9533110b0a3a60c9e865fa0bb5ef74 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Wed, 13 Dec 2017 14:57:06 +0800
-Subject: [PATCH 22/32] ueventd: fix the buggy logging
+Subject: [PATCH 22/28] ueventd: fix the buggy logging
 
 LOG(xxx) is totally broken. Use KLOG_xxx to actually show the log.
 
