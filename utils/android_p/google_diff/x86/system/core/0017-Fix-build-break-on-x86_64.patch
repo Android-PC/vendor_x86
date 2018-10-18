@@ -1,7 +1,7 @@
-From eb61fc7b0d51c3b1947239504bc2c370f44833f0 Mon Sep 17 00:00:00 2001
+From d94b6a4dfded3567fc4ed917b38c749b5bb1beba Mon Sep 17 00:00:00 2001
 From: Ma Jian <majian@jidemail.com>
 Date: Wed, 6 Jul 2016 18:31:55 +0800
-Subject: [PATCH 17/29] Fix build break on x86_64
+Subject: [PATCH 17/32] Fix build break on x86_64
 
 When TARGET_ARCH=x86_64, the LOCAL_SRC_FILES will be wrongly set to
 codegen.cpp.arm,  but the android make will 'smartly' remove the suffix

@@ -1,0 +1,1421 @@
+From fa0c0f5e834273966628c351a2e340c0bcfe1c52 Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Wed, 17 Oct 2018 21:30:51 -0400
+Subject: [PATCH 31/32] init: add modprobe & auto load modules on uevents
+
+We added the modprobe function to init before but it was dropped in
+oreo-x86. Originally I planned to replace it by toybox's modprobe.
+However, it doesn't work as expected. For example, the audio driver
+is not loaded correctly in some Skylake devices.
+
+To fix that, add back the modprobe function to init.
+
+ueventd: auto load modules on uevents
+
+This is an almost rewritten patch which implements the auto modules
+loading function for oreo-x86.
+
+The commits from nougat-x86 are squashed:
+
+* ueventd: defer modules loading if explicitly listed
+
+* ueventd: auto load modules on uevents
+
+Change-Id: I97612cf549831958de2078b3102afb55a9f0cc3b
+---
+ init/Android.bp                         |   6 +
+ init/Android.mk                         |   1 +
+ init/builtins.cpp                       |  12 +-
+ init/devices.cpp                        | 155 ++++++++--
+ init/devices.h                          |   8 +
+ init/init.cpp                           |  25 +-
+ init/init_parser.cpp                    | 168 +++++++++++
+ init/init_parser.h                      | 102 +++++++
+ init/service.cpp                        |  10 +-
+ init/uevent.h                           |   1 +
+ init/uevent_listener.cpp                |   4 +
+ init/ueventd.cpp                        |  11 +-
+ init/ueventd.h                          |   1 +
+ init/util.cpp                           |  30 ++
+ init/util.h                             |   1 +
+ libcutils/Android.bp                    |   1 +
+ libcutils/include/cutils/probe_module.h | 106 +++++++
+ libcutils/probe_module.c                | 386 ++++++++++++++++++++++++
+ libcutils/sched_policy.cpp              |   2 +
+ 19 files changed, 995 insertions(+), 35 deletions(-)
+ create mode 100644 init/init_parser.cpp
+ create mode 100644 init/init_parser.h
+ create mode 100644 libcutils/include/cutils/probe_module.h
+ create mode 100644 libcutils/probe_module.c
+
+diff --git a/init/Android.bp b/init/Android.bp
+index 3af482bd10..7d3c6f4dd4 100644
+--- a/init/Android.bp
++++ b/init/Android.bp
+@@ -26,6 +26,11 @@ cc_defaults {
+         "-Wextra",
+         "-Wno-unused-parameter",
+         "-Werror",
++        //"-Werror=implicit",
++        //"-Wno-error=format",
++        //"-Wno-error=type-limits",
++        //"-Wno-format-extra-args",
++        "-DTARGET_PRODUCT=\"$(TARGET_PRODUCT)\"",
+         "-DALLOW_LOCAL_PROP_OVERRIDE=0",
+         "-DALLOW_PERMISSIVE_SELINUX=0",
+         "-DREBOOT_BOOTLOADER_ON_PANIC=0",
+@@ -104,6 +109,7 @@ cc_library_static {
+         "import_parser.cpp",
+         "init.cpp",
+         "init_first_stage.cpp",
++        "init_parser.cpp",
+         "keychords.cpp",
+         "log.cpp",
+         "parser.cpp",
+diff --git a/init/Android.mk b/init/Android.mk
+index a41f669c9a..e1b2f6caab 100644
+--- a/init/Android.mk
++++ b/init/Android.mk
+@@ -87,6 +87,7 @@ LOCAL_REQUIRED_MODULES := \
+ 
+ # Create symlinks.
+ LOCAL_POST_INSTALL_CMD := $(hide) mkdir -p $(TARGET_ROOT_OUT)/sbin; \
++    ln -sf ../init $(TARGET_ROOT_OUT)/sbin/modprobe; \
+     ln -sf ../init $(TARGET_ROOT_OUT)/sbin/ueventd; \
+     ln -sf ../init $(TARGET_ROOT_OUT)/sbin/watchdogd
+ 
+diff --git a/init/builtins.cpp b/init/builtins.cpp
+index e723424a2a..1309ed1839 100644
+--- a/init/builtins.cpp
++++ b/init/builtins.cpp
+@@ -33,7 +33,6 @@
+ #include <sys/resource.h>
+ #include <sys/socket.h>
+ #include <sys/stat.h>
+-#include <sys/syscall.h>
+ #include <sys/system_properties.h>
+ #include <sys/time.h>
+ #include <sys/types.h>
+@@ -50,6 +49,7 @@
+ #include <android-base/unique_fd.h>
+ #include <bootloader_message/bootloader_message.h>
+ #include <cutils/android_reboot.h>
++#include <cutils/probe_module.h>
+ #include <ext4_utils/ext4_crypt.h>
+ #include <ext4_utils/ext4_crypt_init_extensions.h>
+ #include <fs_mgr.h>
+@@ -231,10 +231,9 @@ static Result<Success> do_insmod(const BuiltinArguments& args) {
+     std::string filename = *it++;
+     std::string options = android::base::Join(std::vector<std::string>(it, args.end()), ' ');
+ 
+-    unique_fd fd(TEMP_FAILURE_RETRY(open(filename.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC)));
+-    if (fd == -1) return ErrnoError() << "open(\"" << filename << "\") failed";
++//    return insmod(filename.c_str(), options.c_str(), flags);
++	int rc = insmod(filename.c_str(), options.c_str(), flags); 
+ 
+-    int rc = syscall(__NR_finit_module, fd.get(), options.c_str(), flags);
+     if (rc == -1) return ErrnoError() << "finit_module for \"" << filename << "\" failed";
+ 
+     return Success();
+@@ -454,7 +453,7 @@ static Result<int> mount_fstab(const char* fstabfile, int mount_mode) {
+         // Only needed if someone explicitly changes the default log level in their init.rc.
+         android::base::ScopedLogSeverity info(android::base::INFO);
+ 
+-        struct fstab* fstab = fs_mgr_read_fstab(filename_val.c_str());
++        struct fstab* fstab = fs_mgr_read_fstab(fstabfile);
+         int child_ret = fs_mgr_mount_all(fstab, mount_mode);
+         fs_mgr_free_fstab(fstab);
+         if (child_ret == -1) {
+@@ -545,6 +544,7 @@ static Result<Success> queue_fs_event(int code) {
+  * not return.
+  */
+ static Result<Success> do_mount_all(const BuiltinArguments& args) {
++    std::size_t na = 0;
+     bool import_rc = true;
+     bool queue_event = true;
+     int mount_mode = MOUNT_MODE_DEFAULT;
+@@ -552,7 +552,7 @@ static Result<Success> do_mount_all(const BuiltinArguments& args) {
+     std::size_t path_arg_end = args.size();
+     const char* prop_post_fix = "default";
+ 
+-    for (std::size_t na = args.size() - 1; na > 1; --na) {
++    for (na = args.size() - 1; na > 1; --na) {
+         if (args[na] == "--early") {
+             path_arg_end = na;
+             queue_event = false;
+diff --git a/init/devices.cpp b/init/devices.cpp
+index 27860b44d9..a0c4c105db 100644
+--- a/init/devices.cpp
++++ b/init/devices.cpp
+@@ -22,6 +22,8 @@
+ #include <unistd.h>
+ 
+ #include <memory>
++#include <set>
++#include <thread>
+ 
+ #include <android-base/logging.h>
+ #include <android-base/stringprintf.h>
+@@ -29,10 +31,13 @@
+ #include <private/android_filesystem_config.h>
+ #include <selinux/android.h>
+ #include <selinux/selinux.h>
++#include <cutils/klog.h>
++#include <cutils/probe_module.h>
+ 
+ #include "selinux.h"
+ #include "ueventd.h"
+ #include "util.h"
++#include "init_parser.h"
+ 
+ #ifdef _INIT_INIT_H
+ #error "Do not include init.h in files used by ueventd or watchdogd; it will expose init's globals"
+@@ -392,27 +397,11 @@ void DeviceHandler::HandleDeviceEvent(const Uevent& uevent) {
+         if (StartsWith(uevent.path, "/devices")) {
+             links = GetBlockDeviceSymlinks(uevent);
+         }
+-    } else if (StartsWith(uevent.subsystem, "usb")) {
+-        if (uevent.subsystem == "usb" || uevent.subsystem == "usbmisc") {
+-            if (!uevent.device_name.empty()) {
+-                devpath = "/dev/" + uevent.device_name;
+-            } else {
+-                // This imitates the file system that would be created
+-                // if we were using devfs instead.
+-                // Minors are broken up into groups of 128, starting at "001"
+-                int bus_id = uevent.minor / 128 + 1;
+-                int device_id = uevent.minor % 128 + 1;
+-                devpath = StringPrintf("/dev/bus/usb/%03d/%03d", bus_id, device_id);
+-            }
+-        } else {
+-            // ignore other USB events
+-            return;
+-        }
+     } else if (const auto subsystem =
+                    std::find(subsystems_.cbegin(), subsystems_.cend(), uevent.subsystem);
+                subsystem != subsystems_.cend()) {
+         devpath = subsystem->ParseDevPath(uevent);
+-    } else if (uevent.subsystem == "usb") {
++    } else if (uevent.subsystem == "usb" || uevent.subsystem == "usbmisc") {
+         if (!uevent.device_name.empty()) {
+             devpath = "/dev/" + uevent.device_name;
+         } else {
+@@ -435,6 +424,103 @@ void DeviceHandler::HandleDeviceEvent(const Uevent& uevent) {
+     HandleDevice(uevent.action, devpath, block, uevent.major, uevent.minor, links);
+ }
+ 
++void DeviceHandler::HandleModuleEvent(const Uevent& uevent, std::vector<std::string>* mod_queue)
++{
++    if (!uevent.modalias.empty() && uevent.action == "add") {
++        if (mod_aliases_.empty()) {
++            ReadModulesDescFiles();
++        }
++        bool deferred = false;
++        if (mod_queue) {
++            for (auto& entry : deferred_mod_aliases_) {
++                if (!fnmatch(entry.first.c_str(), uevent.modalias.c_str(), 0)) {
++                    mod_queue->emplace_back(entry.second);
++                    deferred = true;
++                }
++            }
++        }
++        if (!deferred) {
++            LoadModule(uevent);
++        }
++    }
++}
++
++bool DeviceHandler::LoadModule(const Uevent& uevent) const
++{
++    bool ret = false;
++    for (auto& entry : mod_aliases_) {
++        if (!fnmatch(entry.first.c_str(), uevent.modalias.c_str(), 0)) {
++            ret |= LoadModule(entry.second);
++        }
++    }
++    return ret;
++}
++
++bool DeviceHandler::LoadModule(const std::string& mod, const char* options) const
++{
++    bool ret = !insmod_by_dep(mod.c_str(), options, NULL, 0, NULL);
++    if (!ret) {
++        PLOG(WARNING) << "failed to load " << mod;
++    }
++    return ret;
++}
++
++void DeviceHandler::ReadModulesDescFiles()
++{
++    auto line_parser = [] (auto args, auto err, std::set<std::string>* set_) -> bool {
++//    auto line_parser = [&] (auto args, std::set<std::string>* set_) -> bool {
++        if (args.size() < 2) {
++            *err = "must have 2 entries";
++            return false;
++//            return Error() << "must have 2 entries";
++        }
++
++        set_->emplace(args[1]);
++        return true;
++//        return Success();
++    };
++    using namespace std::placeholders;
++    std::set<std::string> blacklist, deferred;
++
++    InitParser parser;
++    parser.AddSingleLineParser("blacklist", std::bind(line_parser, _1, _2, &blacklist));
++    parser.AddSingleLineParser("deferred", std::bind(line_parser, _1, _2, &deferred));
++//    parser.AddSingleLineParser("blacklist", std::bind(line_parser, _1, &blacklist));
++//    parser.AddSingleLineParser("deferred", std::bind(line_parser, _1, &deferred));
++
++    // wait until the file is ready
++    while (!parser.ParseConfig("/system/etc/modules.blacklist")) {
++        std::this_thread::sleep_for(100ms);
++    }
++
++    parser.AddSingleLineParser("alias", [&] (auto args, auto err) {
++//    parser.AddSingleLineParser("alias", [&] (auto args) {
++        if (args.size() < 3) {
++            *err = "must have 3 entries";
++            return false;
++//            return Error() << "must have 3 entries";
++//            return Error();
++        }
++        if (deferred.find(args[2]) != deferred.end()) {
++            deferred_mod_aliases_.emplace(args[1], args[2]);
++        } else if (blacklist.find(args[2]) == blacklist.end()) {
++            mod_aliases_.emplace(args[1], args[2]);
++        }
++        return true;
++//        return Success();
++    });
++
++    char alias[PATH_MAX];
++    strlcat(get_default_mod_path(alias), "modules.alias", PATH_MAX);
++    parser.ParseConfig(alias);
++}
++
++void DeviceHandler::OnColdBootDone()
++{
++    mod_aliases_.insert(deferred_mod_aliases_.begin(), deferred_mod_aliases_.end());
++    deferred_mod_aliases_.clear();
++}
++
+ DeviceHandler::DeviceHandler(std::vector<Permissions> dev_permissions,
+                              std::vector<SysfsPermissions> sysfs_permissions,
+                              std::vector<Subsystem> subsystems, std::set<std::string> boot_devices,
+@@ -450,5 +536,40 @@ DeviceHandler::DeviceHandler()
+     : DeviceHandler(std::vector<Permissions>{}, std::vector<SysfsPermissions>{},
+                     std::vector<Subsystem>{}, std::set<std::string>{}, false) {}
+ 
++int modprobe_main(int argc, char **argv)
++{
++    // We only accept requests from root user (kernel)
++    if (getuid()) return -EPERM;
++
++    // Kernel will launch a user space program specified by
++    // /proc/sys/kernel/modprobe to load modules.
++    // No deferred loading in this case.
++    while (argc > 1 && (!strcmp(argv[1], "-q") || !strcmp(argv[1], "--"))) {
++        klog_set_level(KLOG_NOTICE_LEVEL);
++        argc--, argv++;
++    }
++
++    if (argc < 2) {
++        // it is called without enough arguments
++        return -EINVAL;
++    }
++
++    std::string options;
++    if (argc > 2) {
++        options = argv[2];
++        for (int i = 3; i < argc; ++i) {
++            options += ' ';
++            options += argv[i];
++        }
++    }
++    KLOG_NOTICE("modprobe", "%s %s", argv[1], options.c_str());
++
++    Uevent uevent = { .modalias = argv[1] };
++    DeviceHandler dh;
++    dh.ReadModulesDescFiles();
++    dh.OnColdBootDone();
++    exit(!dh.LoadModule(uevent) && !dh.LoadModule(uevent.modalias, options.c_str()));
++}
++
+ }  // namespace init
+ }  // namespace android
+diff --git a/init/devices.h b/init/devices.h
+index 9224fcd821..6177ab6a60 100644
+--- a/init/devices.h
++++ b/init/devices.h
+@@ -23,6 +23,7 @@
+ #include <algorithm>
+ #include <set>
+ #include <string>
++#include <map>
+ #include <vector>
+ 
+ #include <android-base/file.h>
+@@ -108,6 +109,11 @@ class DeviceHandler {
+                   std::set<std::string> boot_devices, bool skip_restorecon);
+ 
+     void HandleDeviceEvent(const Uevent& uevent);
++    void HandleModuleEvent(const Uevent& uevent, std::vector<std::string>* mod_queue = nullptr);
++    bool LoadModule(const Uevent& uevent) const;
++    bool LoadModule(const std::string& mod, const char* options = "") const;
++    void ReadModulesDescFiles();
++    void OnColdBootDone();
+ 
+     std::vector<std::string> GetBlockDeviceSymlinks(const Uevent& uevent) const;
+     void set_skip_restorecon(bool value) { skip_restorecon_ = value; }
+@@ -125,6 +131,8 @@ class DeviceHandler {
+     std::vector<Permissions> dev_permissions_;
+     std::vector<SysfsPermissions> sysfs_permissions_;
+     std::vector<Subsystem> subsystems_;
++    std::multimap<std::string, std::string> mod_aliases_;
++    std::multimap<std::string, std::string> deferred_mod_aliases_;
+     std::set<std::string> boot_devices_;
+     bool skip_restorecon_;
+     std::string sysfs_mount_point_;
+diff --git a/init/init.cpp b/init/init.cpp
+index 4cbe208a25..53eaa61cbc 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -457,7 +457,25 @@ static void set_usb_controller() {
+         break;
+     }
+ }
++/*
++void handle_control_message(const std::string& msg, const std::string& name) {
++    Service* svc = ServiceManager::GetInstance().FindServiceByName(name);
++    if (svc == nullptr) {
++        LOG(ERROR) << "no such service '" << name << "'";
++        return;
++    }
+ 
++    if (msg == "start") {
++        svc->Start();
++    } else if (msg == "stop") {
++        svc->Stop();
++    } else if (msg == "restart") {
++        svc->Restart();
++    } else {
++        LOG(ERROR) << "unknown control msg '" << msg << "'";
++    }
++}
++*/
+ static void InstallRebootSignalHandlers() {
+     // Instead of panic'ing the kernel as is the default behavior when init crashes,
+     // we prefer to reboot to bootloader on development builds, as this will prevent
+@@ -490,12 +508,13 @@ static void InstallRebootSignalHandlers() {
+ #endif
+     sigaction(SIGSYS, &action, nullptr);
+     sigaction(SIGTRAP, &action, nullptr);
+-
++/*
+     action.sa_handler = [](int sig) {
+         LOG(INFO) << "Got ctrl-alt-del: " << sig;
+         handle_control_message("start", "ctrl-alt-del");
+     };
+     sigaction(SIGINT, &action, nullptr);
++*/
+ }
+ 
+ static void HandleSigtermSignal() {
+@@ -549,6 +568,10 @@ static void InstallSigtermHandler() {
+ }
+ 
+ int main(int argc, char** argv) {
++    if (!strcmp(basename(argv[0]), "modprobe")) {
++        return modprobe_main(argc, argv);
++    }
++
+     if (!strcmp(basename(argv[0]), "ueventd")) {
+         return ueventd_main(argc, argv);
+     }
+diff --git a/init/init_parser.cpp b/init/init_parser.cpp
+new file mode 100644
+index 0000000000..be9fc96521
+--- /dev/null
++++ b/init/init_parser.cpp
+@@ -0,0 +1,168 @@
++/*
++ * Copyright (C) 2010 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "init_parser.h"
++
++#include <dirent.h>
++
++#include <android-base/chrono_utils.h>
++#include <android-base/logging.h>
++#include <android-base/stringprintf.h>
++#include <android-base/strings.h>
++
++#include "tokenizer.h"
++#include "util.h"
++
++namespace android {
++namespace init {
++
++InitParser::InitParser() {
++}
++
++InitParser& InitParser::GetInstance() {
++    static InitParser instance;
++    return instance;
++}
++
++void InitParser::AddSectionParser(const std::string& name,
++                              std::unique_ptr<SectionParser> parser) {
++    section_parsers_[name] = std::move(parser);
++}
++
++void InitParser::AddSingleLineParser(const std::string& prefix, LineCallback callback) {
++    line_callbacks_.emplace_back(prefix, callback);
++}
++
++void InitParser::ParseData(const std::string& filename, const std::string& data) {
++    //TODO: Use a parser with const input and remove this copy
++    std::vector<char> data_copy(data.begin(), data.end());
++    data_copy.push_back('\0');
++
++    parse_state state;
++    state.line = 0;
++    state.ptr = &data_copy[0];
++    state.nexttoken = 0;
++
++    SectionParser* section_parser = nullptr;
++    std::vector<std::string> args;
++
++    for (;;) {
++        switch (next_token(&state)) {
++        case T_EOF:
++            if (section_parser) {
++                section_parser->EndSection();
++            }
++            return;
++        case T_NEWLINE:
++            state.line++;
++            if (args.empty()) {
++                break;
++            }
++            // If we have a line matching a prefix we recognize, call its callback and unset any
++            // current section parsers.  This is meant for /sys/ and /dev/ line entries for uevent.
++            for (const auto& [prefix, callback] : line_callbacks_) {
++                if (android::base::StartsWith(args[0], prefix.c_str())) {
++                    if (section_parser) section_parser->EndSection();
++
++                    std::string ret_err;
++                    if (!callback(std::move(args), &ret_err)) {
++                        LOG(ERROR) << filename << ": " << state.line << ": " << ret_err;
++                    }
++                    section_parser = nullptr;
++                    break;
++                }
++            }
++            if (section_parsers_.count(args[0])) {
++                if (section_parser) {
++                    section_parser->EndSection();
++                }
++                section_parser = section_parsers_[args[0]].get();
++                std::string ret_err;
++                if (!section_parser->ParseSection(std::move(args), filename, state.line, &ret_err)) {
++                    LOG(ERROR) << filename << ": " << state.line << ": " << ret_err;
++                    section_parser = nullptr;
++                }
++            } else if (section_parser) {
++                std::string ret_err;
++                if (!section_parser->ParseLineSection(std::move(args), state.line, &ret_err)) {
++                    LOG(ERROR) << filename << ": " << state.line << ": " << ret_err;
++                }
++            }
++            args.clear();
++            break;
++        case T_TEXT:
++            args.emplace_back(state.text);
++            break;
++        }
++    }
++}
++
++bool InitParser::ParseConfigFile(const std::string& path) {
++    LOG(INFO) << "Parsing file " << path << "...";
++    android::base::Timer t;
++    std::string data;
++    std::string err;
++    if (!ReadFile(path, &data, &err)) {
++        LOG(ERROR) << err;
++        return false;
++    }
++
++    data.push_back('\n'); // TODO: fix parse_config.
++    ParseData(path, data);
++    for (const auto& [section_name, section_parser] : section_parsers_) {
++        section_parser->EndFile();
++    }
++
++    LOG(VERBOSE) << "(Parsing " << path << " took " << t << ".)";
++    return true;
++}
++
++bool InitParser::ParseConfigDir(const std::string& path) {
++    LOG(INFO) << "Parsing directory " << path << "...";
++    std::unique_ptr<DIR, int(*)(DIR*)> config_dir(opendir(path.c_str()), closedir);
++    if (!config_dir) {
++        PLOG(ERROR) << "Could not import directory '" << path << "'";
++        return false;
++    }
++    dirent* current_file;
++    std::vector<std::string> files;
++    while ((current_file = readdir(config_dir.get()))) {
++        // Ignore directories and only process regular files.
++        if (current_file->d_type == DT_REG) {
++            std::string current_path =
++                android::base::StringPrintf("%s/%s", path.c_str(), current_file->d_name);
++            files.emplace_back(current_path);
++        }
++    }
++    // Sort first so we load files in a consistent order (bug 31996208)
++    std::sort(files.begin(), files.end());
++    for (const auto& file : files) {
++        if (!ParseConfigFile(file)) {
++            LOG(ERROR) << "could not import file '" << file << "'";
++        }
++    }
++    return true;
++}
++
++bool InitParser::ParseConfig(const std::string& path) {
++    if (is_dir(path.c_str())) {
++        return ParseConfigDir(path);
++    }
++    return ParseConfigFile(path);
++}
++
++}  // namespace init
++}  // namespace android
+diff --git a/init/init_parser.h b/init/init_parser.h
+new file mode 100644
+index 0000000000..1dc150bf06
+--- /dev/null
++++ b/init/init_parser.h
+@@ -0,0 +1,102 @@
++/*
++ * Copyright (C) 2010 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _INIT_INIT_PARSER_H_
++#define _INIT_INIT_PARSER_H_
++
++#include <map>
++#include <memory>
++#include <string>
++#include <vector>
++
++//  SectionParser is an interface that can parse a given 'section' in init.
++//
++//  You can implement up to 4 functions below, with ParseSection() being mandatory.
++//  The first two function return bool with false indicating a failure and has a std::string* err
++//  parameter into which an error string can be written.  It will be reported along with the
++//  filename and line number of where the error occurred.
++//
++//  1) bool ParseSection(std::vector<std::string>&& args, const std::string& filename,
++//                       int line, std::string* err)
++//    This function is called when a section is first encountered.
++//
++//  2) bool ParseLineSection(std::vector<std::string>&& args, int line, std::string* err)
++//    This function is called on each subsequent line until the next section is encountered.
++//
++//  3) bool EndSection()
++//    This function is called either when a new section is found or at the end of the file.
++//    It indicates that parsing of the current section is complete and any relevant objects should
++//    be committed.
++//
++//  4) bool EndFile()
++//    This function is called at the end of the file.
++//    It indicates that the parsing has completed and any relevant objects should be committed.
++
++namespace android {
++namespace init {
++
++class SectionParser {
++  public:
++    virtual ~SectionParser() {}
++    virtual bool ParseSection(std::vector<std::string>&& args, const std::string& filename,
++                              int line, std::string* err) = 0;
++    virtual bool ParseLineSection(std::vector<std::string>&&, int, std::string*) { return true; };
++    virtual void EndSection(){};
++    virtual void EndFile(){};
++};
++
++class InitParser {
++  public:
++    //  LineCallback is the type for callbacks that can parse a line starting with a given prefix.
++    //
++    //  They take the form of bool Callback(std::vector<std::string>&& args, std::string* err)
++    //
++    //  Similar to ParseSection() and ParseLineSection(), this function returns bool with false
++    //  indicating a failure and has an std::string* err parameter into which an error string can
++    //  be written.
++    using LineCallback = std::function<bool(std::vector<std::string>&&, std::string*)>;
++
++    // TODO: init is the only user of this as a singleton; remove it.
++    static InitParser& GetInstance();
++
++    InitParser();
++
++    bool ParseConfig(const std::string& path);
++    void AddSectionParser(const std::string& name, std::unique_ptr<SectionParser> parser);
++    void AddSingleLineParser(const std::string& prefix, LineCallback callback);
++    void set_is_system_etc_init_loaded(bool loaded) { is_system_etc_init_loaded_ = loaded; }
++    void set_is_vendor_etc_init_loaded(bool loaded) { is_vendor_etc_init_loaded_ = loaded; }
++    void set_is_odm_etc_init_loaded(bool loaded) { is_odm_etc_init_loaded_ = loaded; }
++    bool is_system_etc_init_loaded() { return is_system_etc_init_loaded_; }
++    bool is_vendor_etc_init_loaded() { return is_vendor_etc_init_loaded_; }
++    bool is_odm_etc_init_loaded() { return is_odm_etc_init_loaded_; }
++
++  private:
++    void ParseData(const std::string& filename, const std::string& data);
++    bool ParseConfigFile(const std::string& path);
++    bool ParseConfigDir(const std::string& path);
++
++    std::map<std::string, std::unique_ptr<SectionParser>> section_parsers_;
++    std::vector<std::pair<std::string, LineCallback>> line_callbacks_;
++    bool is_system_etc_init_loaded_ = false;
++    bool is_vendor_etc_init_loaded_ = false;
++    bool is_odm_etc_init_loaded_ = false;
++};
++
++}  // namespace init
++}  // namespace android
++
++#endif
+diff --git a/init/service.cpp b/init/service.cpp
+index 115d610bcb..fd9b81acca 100644
+--- a/init/service.cpp
++++ b/init/service.cpp
+@@ -91,16 +91,8 @@ static Result<std::string> ComputeContextFromExecutable(const std::string& servi
+         free(new_con);
+     }
+     if (rc == 0 && computed_context == mycon.get()) {
+-        if (selinux_status_getenforce() > 0) {
+-            return Error() << "File " << service_path << "(labeled \"" << filecon.get()
+-                           << "\") has incorrect label or no domain transition from " << mycon.get()
+-                           << " to another SELinux domain defined. Have you configured your "
+-                              "service correctly? https://source.android.com/security/selinux/"
+-                              "device-policy#label_new_services_and_address_denials";
+-        }else{
+-        KLOG_WARNING("service", "%s does not have a SELinux domain defined", service_name.c_str());
++        KLOG_WARNING("service", "%s does not have a SELinux domain defined", service_path.c_str());
+         return "skip";
+-        }
+     }
+     if (rc < 0) {
+         return Error() << "Could not get process context";
+diff --git a/init/uevent.h b/init/uevent.h
+index c4fd9454c4..dc35fd968d 100644
+--- a/init/uevent.h
++++ b/init/uevent.h
+@@ -29,6 +29,7 @@ struct Uevent {
+     std::string firmware;
+     std::string partition_name;
+     std::string device_name;
++    std::string modalias;
+     int partition_num;
+     int major;
+     int minor;
+diff --git a/init/uevent_listener.cpp b/init/uevent_listener.cpp
+index 0df880cc62..4d9e5a7196 100644
+--- a/init/uevent_listener.cpp
++++ b/init/uevent_listener.cpp
+@@ -39,6 +39,7 @@ static void ParseEvent(const char* msg, Uevent* uevent) {
+     uevent->firmware.clear();
+     uevent->partition_name.clear();
+     uevent->device_name.clear();
++    uevent->modalias.clear();
+     // currently ignoring SEQNUM
+     while (*msg) {
+         if (!strncmp(msg, "ACTION=", 7)) {
+@@ -68,6 +69,9 @@ static void ParseEvent(const char* msg, Uevent* uevent) {
+         } else if (!strncmp(msg, "DEVNAME=", 8)) {
+             msg += 8;
+             uevent->device_name = msg;
++        } else if (!strncmp(msg, "MODALIAS=", 9)) {
++            msg += 9;
++            uevent->modalias = msg;
+         }
+ 
+         // advance to after the next \0
+diff --git a/init/ueventd.cpp b/init/ueventd.cpp
+index 0c6b70db49..dd3d5b0f0c 100644
+--- a/init/ueventd.cpp
++++ b/init/ueventd.cpp
+@@ -30,8 +30,8 @@
+ #include <android-base/chrono_utils.h>
+ #include <android-base/logging.h>
+ #include <android-base/properties.h>
+-#include <fstab/fstab.h>
+ #include <cutils/klog.h>
++#include <fstab/fstab.h>
+ #include <selinux/android.h>
+ #include <selinux/selinux.h>
+ 
+@@ -127,6 +127,7 @@ class ColdBoot {
+ 
+     unsigned int num_handler_subprocesses_;
+     std::vector<Uevent> uevent_queue_;
++    std::vector<std::string> mod_queue_;
+ 
+     std::set<pid_t> subprocess_pids_;
+ };
+@@ -142,7 +143,7 @@ void ColdBoot::UeventHandlerMain(unsigned int process_num, unsigned int total_pr
+ void ColdBoot::RegenerateUevents() {
+     uevent_listener_.RegenerateUevents([this](const Uevent& uevent) {
+         HandleFirmwareEvent(uevent);
+-
++        device_handler_.HandleModuleEvent(uevent, &mod_queue_);
+         uevent_queue_.emplace_back(std::move(uevent));
+         return ListenerAction::kContinue;
+     });
+@@ -212,6 +213,11 @@ void ColdBoot::Run() {
+ 
+     WaitForSubProcesses();
+ 
++    device_handler_.OnColdBootDone();
++    for (auto& mod : mod_queue_) {
++        device_handler_.LoadModule(mod);
++    }
++
+     close(open(COLDBOOT_DONE, O_WRONLY | O_CREAT | O_CLOEXEC, 0000));
+     KLOG_NOTICE("Coldboot", "took %f seconds", cold_boot_timer.duration().count() / 1000.0f);
+ }
+@@ -266,6 +272,7 @@ int ueventd_main(int argc, char** argv) {
+ 
+     uevent_listener.Poll([&device_handler](const Uevent& uevent) {
+         HandleFirmwareEvent(uevent);
++        device_handler.HandleModuleEvent(uevent);
+         device_handler.HandleDeviceEvent(uevent);
+         return ListenerAction::kContinue;
+     });
+diff --git a/init/ueventd.h b/init/ueventd.h
+index 51775ecece..2841eca722 100644
+--- a/init/ueventd.h
++++ b/init/ueventd.h
+@@ -21,6 +21,7 @@ namespace android {
+ namespace init {
+ 
+ int ueventd_main(int argc, char** argv);
++int modprobe_main(int argc, char **argv);
+ 
+ }  // namespace init
+ }  // namespace android
+diff --git a/init/util.cpp b/init/util.cpp
+index 4455b2eb1e..f87e096c52 100644
+--- a/init/util.cpp
++++ b/init/util.cpp
+@@ -160,6 +160,36 @@ out_unlink:
+     return -1;
+ }
+ 
++bool ReadFile(const std::string& path, std::string* content, std::string* err) {
++    content->clear();
++    *err = "";
++
++    android::base::unique_fd fd(
++        TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC)));
++    if (fd == -1) {
++        *err = "Unable to open '" + path + "': " + strerror(errno);
++        return false;
++    }
++
++    // For security reasons, disallow world-writable
++    // or group-writable files.
++    struct stat sb;
++    if (fstat(fd, &sb) == -1) {
++        *err = "fstat failed for '" + path + "': " + strerror(errno);
++        return false;
++    }
++    if ((sb.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
++        *err = "Skipping insecure file '" + path + "'";
++        return false;
++    }
++
++    if (!android::base::ReadFdToString(fd, content)) {
++        *err = "Unable to read '" + path + "': " + strerror(errno);
++        return false;
++    }
++    return true;
++}
++
+ Result<std::string> ReadFile(const std::string& path) {
+     android::base::unique_fd fd(
+         TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC)));
+diff --git a/init/util.h b/init/util.h
+index 07e4864ace..d8b4b7116d 100644
+--- a/init/util.h
++++ b/init/util.h
+@@ -41,6 +41,7 @@ namespace init {
+ int CreateSocket(const char* name, int type, bool passcred, mode_t perm, uid_t uid, gid_t gid,
+                  const char* socketcon);
+ 
++bool ReadFile(const std::string& path, std::string* content, std::string* err);
+ Result<std::string> ReadFile(const std::string& path);
+ Result<Success> WriteFile(const std::string& path, const std::string& content);
+ 
+diff --git a/libcutils/Android.bp b/libcutils/Android.bp
+index bcc9b1c84b..09da6d5858 100644
+--- a/libcutils/Android.bp
++++ b/libcutils/Android.bp
+@@ -105,6 +105,7 @@ cc_library {
+                 "ashmem-dev.cpp",
+                 "klog.cpp",
+                 "partition_utils.cpp",
++                "probe_module.c",
+                 "properties.cpp",
+                 "qtaguid.cpp",
+                 "trace-dev.cpp",
+diff --git a/libcutils/include/cutils/probe_module.h b/libcutils/include/cutils/probe_module.h
+new file mode 100644
+index 0000000000..d18073694e
+--- /dev/null
++++ b/libcutils/include/cutils/probe_module.h
+@@ -0,0 +1,106 @@
++/*
++ * Copyright (C) 2012 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef _LIBS_CUTILS_PROBEMODULE_H
++#define _LIBS_CUTILS_PROBEMODULE_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* get_default_mod_path() - get the default modules path
++ * It checks /system/lib/modules/$(uname -r)/ first. If it doesn't exist,
++ * fall back to /system/lib/modules/.
++ *
++ * def_mod_path: The buffer to be filled
++ *
++ * return      : def_mod_path
++ */
++extern char *get_default_mod_path(char *def_mod_path);
++
++/* insmod() - load a kernel module (target) from a file
++ *
++ * filename   : Filename of the target module.
++ *
++ * args       : A string of target module's parameters. NOTE: we only
++ *              support parameters of the target module.
++ *
++ * flags      : MODULE_INIT_* flags defined in module.h
++ *
++ * return     : 0 for success; -1 indicates an error
++ */
++extern int insmod(const char *filename, const char *options, int flags);
++
++/* insmod_by_dep() - load a kernel module (target) with its dependency
++ * The module's dependency must be described in the provided dependency file.
++ * other modules in the dependency chain will be loaded prior to the target.
++ *
++ * module_name: Name of the target module. e.g. name "MyModule" is for
++ *              module file MyModule.ko.
++ *
++ * args       : A string of target module's parameters. NOTE: we only
++ *              support parameters of the target module.
++ *
++ * dep_name   : Name of dependency file. If it is NULL, we will look
++ *              up /system/lib/modules/modules.dep by default.
++ *
++ * strip      : Non-zero values remove paths of modules in dependency.
++ *              before loading them. The final path of a module will be
++ *              base/MyModule.ko. This is for devices which put every
++ *              modules into a single directory.
++ *
++ *              Passing 0 to strip keeps module paths in dependency file.
++ *              e.g. "kernel/drivers/.../MyModule.ko" in dep file will
++ *              be loaded as base/kernel/drivers/.../MyModule.ko .
++ *
++ * base       : Base dir, a prefix to be added to module's path prior to
++ *              loading. The last character prior to base string's terminator
++ *              must be a '/'. If it is NULL, we will take
++ *              /system/lib/modules/modules.dep by default.
++ *
++ * return     : 0 for success; non-zero for any errors.
++ *
++ * Note:
++ * When loading modules, function will not fail for any modules which are
++ * already in kernel. The module parameters passed to function will not be
++ * effective in this case if target module is already loaded into kernel.
++ */
++extern int insmod_by_dep(
++        const char *module_name,
++        const char *args,
++        const char *dep_name,
++        int strip,
++        const char * base);
++
++/* rmmod_by_dep() - remove a module (target) from kernel with its dependency
++ * The module's dependency must be described in the provided dependency file.
++ * This function will try to remove other modules in the dependency chain too
++ *
++ * module_name: Name of the target module. e.g. name "MyModule" is for
++ *              module file MyModule.ko.
++ *
++ * dep_name   : Name of dependency file. If it is NULL, we will look
++ *              up /system/lib/modules/modules.dep by default.
++ *
++ * return     : 0 for success; non-zero for any errors.
++ */
++extern int rmmod_by_dep(const char *module_name, const char *dep_name);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif /*_LIBS_CUTILS_PROBEMODULE_H*/
+diff --git a/libcutils/probe_module.c b/libcutils/probe_module.c
+new file mode 100644
+index 0000000000..c4596d57af
+--- /dev/null
++++ b/libcutils/probe_module.c
+@@ -0,0 +1,386 @@
++/*
++ * Copyright (C) 2012 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <limits.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <cutils/misc.h>
++#include <sys/syscall.h>
++#include <sys/utsname.h>
++
++#define LOG_TAG "ProbeModule"
++#include <cutils/log.h>
++
++#define LDM_DEFAULT_MOD_PATH "/system/lib/modules/"
++
++extern int delete_module(const char *, unsigned int);
++
++/* get_default_mod_path() interface to outside,
++ * refer to its description in probe_module.h
++ */
++char *get_default_mod_path(char *def_mod_path)
++{
++    int len;
++    struct utsname buf;
++    uname(&buf);
++    len = snprintf(def_mod_path, PATH_MAX, "%s", LDM_DEFAULT_MOD_PATH);
++    strcpy(def_mod_path + len, buf.release);
++    if (access(def_mod_path, F_OK))
++        def_mod_path[len] = '\0';
++    else
++        strcat(def_mod_path, "/");
++    return def_mod_path;
++}
++
++int insmod(const char *filename, const char *options, int flags)
++{
++    int fd = open(filename, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
++    if (fd == -1) {
++        ALOGE("insmod: open(\"%s\") failed: %s", filename, strerror(errno));
++        return -1;
++    }
++    int rc = syscall(__NR_finit_module, fd, options, flags);
++    if (rc == -1) {
++        if (errno == EEXIST) {
++            rc = 0;
++        } else {
++            ALOGE("finit_module for \"%s\" failed: %s", filename, strerror(errno));
++        }
++    }
++    close(fd);
++    return rc;
++}
++
++static char *strip_path(char *str)
++{
++    char *ptr = strrchr(str, '/');
++    return ptr ? ptr + 1 : str;
++}
++
++static void hyphen_to_underscore(char *str)
++{
++    while (str && *str != '\0') {
++        if (*str == '-')
++            *str = '_';
++        str++;
++    }
++}
++
++/* Compare module names, but don't differentiate '_' and '-'.
++ * return: 0 when s1 is matched to s2 or size is zero.
++ *         non-zero in any other cases.
++ */
++static int match_name(const char *s1, const char *s2, const size_t size)
++{
++    size_t i;
++
++    if (!size)
++        return 0;
++
++    for (i = 0; i < size; i++, s1++, s2++) {
++
++        if ((*s1 == '_' || *s1 == '-') && (*s2 == '_' || *s2 == '-'))
++            continue;
++
++        if (*s1 != *s2)
++            return -1;
++
++        if (*s1 == '\0')
++            return 0;
++    }
++
++    return 0;
++}
++
++/* check if a line in dep file is target module's dependency.
++ * return 1 when it is, otherwise 0 in any other cases.
++ */
++static int is_target_module(char *line, const char *target)
++{
++    char *token;
++    char name[PATH_MAX];
++    const char *delimiter = ":";
++    int ret = 0;
++
++    /* search token */
++    token = strstr(line, delimiter);
++
++    if (!token) {
++        ALOGE("invalid line: no token");
++        return 0;
++    }
++
++    /* only take stuff before the token */
++    *token = '\0';
++
++    /* use "module.ko" in comparision */
++    strcat(strcpy(name, target), ".ko");
++
++    ret = !match_name(strip_path(line), name, strlen(name));
++
++    /* restore [single] token, keep line unchanged until we parse it later */
++    *token = *delimiter;
++
++    return ret;
++
++}
++
++/* turn a single string into an array of dependency.
++ *
++ * return: dependency array's address if it succeeded. Caller
++ *         is responsible to free the array's memory.
++ *         NULL when any error happens.
++ */
++static char **setup_dep(char *line)
++{
++    char *tmp = line;
++    char *brk;
++    int i;
++    char **dep;
++
++    for (i = 2; (tmp = strchr(tmp, ' ')); i++)
++        tmp++;
++
++    dep = malloc(sizeof(char *) * i);
++    if (dep) {
++        i = 0;
++        do {
++            tmp = strtok_r(i ? NULL : line, ": ", &brk);
++        } while ((dep[i++] = tmp));
++    }
++
++    return dep;
++}
++
++/* install all modules in the dependency chain
++ * deps    : A array of module file names, must be terminated by a NULL pointer
++ * args    : The module parameters for target module.
++ * strip   : Non-zero to strip out path info in the file name;
++ *           0 to keep path info when loading modules.
++ * base    : a prefix to module path, it will NOT be affected by strip flag.
++ * return  : 0 for success or nothing to do; non-zero when any error occurs.
++ */
++static int insmod_s(char *dep[], const char *args, int strip, const char *base)
++{
++    char *name;
++    int cnt;
++    size_t len;
++    int ret = 0;
++    char path_name[PATH_MAX];
++    char def_mod_path[PATH_MAX];
++    const char *base_dir;
++
++    if (base && strlen(base))
++        base_dir = base;
++    else
++        base_dir = get_default_mod_path(def_mod_path);
++
++    /* load modules in reversed order */
++    for (cnt = 0; dep[cnt]; cnt++)
++        ;
++
++    len = strlen(strcpy(path_name, base_dir));
++
++    while (!ret && cnt--) {
++
++        name = strip ? strip_path(dep[cnt]) : dep[cnt];
++
++        strcpy(path_name + len, name);
++
++        ret = insmod(path_name, cnt ? "" : args, 0);
++    }
++
++    return ret;
++}
++
++/* remove all modules in a dependency chain
++ * NOTE: We assume module name in kernel is same as the file name without .ko
++ */
++static int rmmod_s(char *dep[], int flags)
++{
++    int i;
++    int ret = 0;
++
++    for (i = 0; dep[i]; i++) {
++        char *mod_name = strip_path(dep[i]);
++        size_t len = strlen(mod_name);
++
++        if (len > 3 && strstr(mod_name, ".ko") == (mod_name + len - 3)) {
++            mod_name[len - 3] = '\0';
++
++            hyphen_to_underscore(mod_name);
++
++            ret = delete_module(mod_name, flags);
++
++            if (ret) {
++                ALOGE("%s: Failed to remove module [%s] error (%s)",
++                        __FUNCTION__, mod_name, strerror(errno));
++                break;
++
++            }
++        }
++    }
++
++    return ret;
++}
++
++/* look_up_dep() find and setup target module's dependency in modules.dep
++ *
++ * dep_file:    a pointer to module's dep file loaded in memory, its content
++ *              will be CHANGED during parsing.
++ *
++ * return:      a pointer to an array which holds the dependency strings and
++ *              terminated by a NULL pointer. Caller is responsible to free the
++ *              array's memory.
++ *
++ *              non-zero in any other cases. Content of dep array is invalid.
++ */
++static char **look_up_dep(const char *module_name, void *dep_file)
++{
++    char *line;
++    char *saved_pos;
++    char *start;
++    char **dep = NULL;
++
++    if (!dep_file || !module_name || *module_name == '\0')
++        return NULL;
++
++    start = (char *)dep_file;
++
++    /* We expect modules.dep file has a new line char before EOF. */
++    while ((line = strtok_r(start, "\n", &saved_pos)) != NULL) {
++
++        start = NULL;
++
++        if (is_target_module(line, module_name)) {
++
++            dep = setup_dep(line);
++            /* job done */
++            break;
++        }
++    }
++
++    return dep;
++}
++
++/* load_dep_file() load a dep file (usually it is modules.dep)
++ * into memory. Caller is responsible to free the memory.
++ *
++ * file_name:   dep file's name, if it is NULL or an empty string,
++ *              This function will try to load a dep file in the
++ *              default path defined in LDM_DEFAULT_DEP_FILE
++ *
++ * return:      a pointer to the allocated mem which holds all
++ *              content of the depfile. a zero pointer will be
++ *              returned for any errors.
++ * */
++static void *load_dep_file(const char *file_name)
++{
++    unsigned int len;
++    char def_mod_path[PATH_MAX];
++    if (!file_name || *file_name == '\0') {
++        file_name = get_default_mod_path(def_mod_path);
++        strcat(def_mod_path, "modules.dep");
++    }
++
++    return load_file(file_name, &len);
++}
++
++/* insmod_by_dep() interface to outside,
++ * refer to its description in probe_module.h
++ */
++int insmod_by_dep(const char *module_name,
++        const char *args,
++        const char *dep_name,
++        int strip,
++        const char *base)
++{
++    void *dep_file;
++    char **dep = NULL;
++    int ret = -1;
++
++    if (!module_name || *module_name == '\0') {
++        ALOGE("need valid module name");
++        return ret;
++    }
++
++    dep_file = load_dep_file(dep_name);
++
++    if (!dep_file) {
++        ALOGE("cannot load dep file : %s", dep_name);
++        return ret;
++    }
++
++    dep = look_up_dep(module_name, dep_file);
++
++    if (!dep) {
++        ALOGE("%s: cannot load module: [%s]", __FUNCTION__, module_name);
++        goto free_file;
++    }
++
++    ret = insmod_s(dep, args, strip, base);
++
++    free(dep);
++
++free_file:
++    free(dep_file);
++
++    return ret;
++
++}
++
++/* rmmod_by_dep() interface to outside,
++ * refer to its description in probe_module.h
++ */
++int rmmod_by_dep(const char *module_name, const char *dep_name)
++{
++    void *dep_file;
++    char **dep = NULL;
++    int ret = -1;
++
++    if (!module_name || *module_name == '\0') {
++        ALOGE("need valid module name");
++        return ret;
++    }
++
++    dep_file = load_dep_file(dep_name);
++
++    if (!dep_file) {
++        ALOGE("cannot load dep file : %s", dep_name);
++        return ret;
++    }
++
++    dep = look_up_dep(module_name, dep_file);
++
++    if (!dep) {
++        ALOGE("%s: cannot remove module: [%s]", __FUNCTION__, module_name);
++        goto free_file;
++    }
++
++    ret = rmmod_s(dep, O_NONBLOCK);
++
++    free(dep);
++
++free_file:
++    free(dep_file);
++
++    return ret;
++}
++
++/* end of file */
+diff --git a/libcutils/sched_policy.cpp b/libcutils/sched_policy.cpp
+index f72ec52d60..86872cb2a2 100644
+--- a/libcutils/sched_policy.cpp
++++ b/libcutils/sched_policy.cpp
+@@ -93,6 +93,8 @@ static int add_tid_to_cgroup(int tid, int fd)
+                 return 0;
+         SLOGW("add_tid_to_cgroup failed to write '%s' (%s); fd=%d\n",
+               ptr, strerror(errno), fd);
++        if (errno == ENOSPC)
++                return 0;
+         errno = EINVAL;
+         return -1;
+     }
+-- 
+2.17.1
+

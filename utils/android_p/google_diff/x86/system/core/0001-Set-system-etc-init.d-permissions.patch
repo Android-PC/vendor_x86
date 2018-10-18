@@ -1,7 +1,7 @@
-From a0ed28575fc95037d277fb868a054eb12c492e19 Mon Sep 17 00:00:00 2001
+From 045b784d0d9cf4f918c1655218a39bc2bb2c77ff Mon Sep 17 00:00:00 2001
 From: beanstown106 <nbenis106@gmail.com>
 Date: Sun, 5 Feb 2012 00:55:17 +0100
-Subject: [PATCH 01/29] Set /system/etc/init.d/* permissions
+Subject: [PATCH 01/32] Set /system/etc/init.d/* permissions
 
 Change-Id: I86fd9333beb328f542444df6941074546b8b49be
 ---

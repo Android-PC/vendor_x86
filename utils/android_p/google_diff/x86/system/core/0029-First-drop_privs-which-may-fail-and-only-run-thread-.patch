@@ -1,7 +1,7 @@
-From b906e7221d150650e2a4848f91f3f63386ab62bd Mon Sep 17 00:00:00 2001
+From a82e5eadf79ce9ee7d0736967487bff4b20248f6 Mon Sep 17 00:00:00 2001
 From: Pierre-Hugues Husson <phh@phh.me>
 Date: Tue, 14 Aug 2018 19:33:23 +0200
-Subject: [PATCH 28/29] First drop_privs (which may fail) and only run thread
+Subject: [PATCH 29/32] First drop_privs (which may fail) and only run thread
  that might be scheduled before us
 
 Change-Id: I118fb2d4beedbeecf5d3a8d255929d3be480b923

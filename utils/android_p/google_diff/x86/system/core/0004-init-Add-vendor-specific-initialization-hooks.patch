@@ -1,7 +1,7 @@
-From a38f5cab3889e7158104d5f01c3727392ae53416 Mon Sep 17 00:00:00 2001
+From da92137c052e0f2e69a82d82572bbef0fafae316 Mon Sep 17 00:00:00 2001
 From: David Ng <dave@codeaurora.org>
 Date: Mon, 23 Sep 2013 18:50:24 -0700
-Subject: [PATCH 04/29] init: Add vendor-specific initialization hooks.
+Subject: [PATCH 04/32] init: Add vendor-specific initialization hooks.
 
 Allow optional vendor-specific initializations
 within init.  This can be used for runtime

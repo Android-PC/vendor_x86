@@ -1,7 +1,7 @@
-From 562155edb0d56bb45688564b8f6aa5d926dea7b0 Mon Sep 17 00:00:00 2001
+From ec74fe9c1ab0ac06be4b97b28d0d3a205422ff84 Mon Sep 17 00:00:00 2001
 From: beanstown106 <nbenis106@gmail.com>
 Date: Fri, 9 Oct 2015 00:08:41 -0400
-Subject: [PATCH 02/29] Set permissions on /system/addon.d/ and files within.
+Subject: [PATCH 02/32] Set permissions on /system/addon.d/ and files within.
 
 Change-Id: I2cda5670145820fcaacc6f79096f551244227fb1
 ---

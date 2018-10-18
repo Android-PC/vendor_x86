@@ -1,7 +1,7 @@
-From f433fff90252b5b43ea95024730df9ff691bbb6a Mon Sep 17 00:00:00 2001
+From 1bf74e97bae2bb178ce1eddab6ca76ca23a5f171 Mon Sep 17 00:00:00 2001
 From: beanstown106 <nbenis106@gmail.com>
 Date: Sat, 26 Dec 2015 10:57:00 -0500
-Subject: [PATCH 03/29] Disable flashing of stock recovery correctly
+Subject: [PATCH 03/32] Disable flashing of stock recovery correctly
 
 Change-Id: I73e3fbd652189146335af0bc7fb0c6323ed3787e
 ---
