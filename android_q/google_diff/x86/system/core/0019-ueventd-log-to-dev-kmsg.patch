@@ -1,0 +1,433 @@
+From 86a482ed1b3ec872ea94b4ae212fae056fe7d994 Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@lincor.com>
+Date: Fri, 4 Oct 2019 10:48:44 -0400
+Subject: [PATCH 19/25] ueventd: log to /dev/kmsg
+
+---
+ init/firmware_handler.cpp       | 27 ++++++++++++
+ libmodprobe/Android.bp          |  1 +
+ libmodprobe/libmodprobe.cpp     | 78 +++++++++++++++++++++++++++++++++
+ libmodprobe/libmodprobe_ext.cpp | 32 ++++++++++++++
+ toolbox/Android.bp              |  1 +
+ 5 files changed, 139 insertions(+)
+
+diff --git a/init/firmware_handler.cpp b/init/firmware_handler.cpp
+index dff7b6948..fdef72a2f 100644
+--- a/init/firmware_handler.cpp
++++ b/init/firmware_handler.cpp
+@@ -32,6 +32,9 @@
+ #include <android-base/logging.h>
+ #include <android-base/strings.h>
+ #include <android-base/unique_fd.h>
++#if defined(__ANDROID__)
++#include <cutils/klog.h>
++#endif
+ 
+ using android::base::ReadFdToString;
+ using android::base::Socketpair;
+@@ -52,7 +55,11 @@ static void LoadFirmware(const std::string& firmware, const std::string& root, i
+     // Copy the firmware.
+     int rc = sendfile(data_fd, fw_fd, nullptr, fw_size);
+     if (rc == -1) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("firmware", "firmware: sendfile failed { '%s', '%s', }", root.c_str(), firmware.c_str());
++#else
+         PLOG(ERROR) << "firmware: sendfile failed { '" << root << "', '" << firmware << "' }";
++#endif
+     }
+ 
+     // Tell the firmware whether to abort or commit.
+@@ -181,7 +188,11 @@ std::string FirmwareHandler::GetFirmwarePath(const Uevent& uevent) const {
+             return *result;
+         }
+     }
++#if defined(__ANDROID__)
++    KLOG_INFO("firmware", "firmware: loading '%s' for '%s'", uevent.firmware.c_str(), uevent.path.c_str());
++#else
+     LOG(INFO) << "firmware: loading '" << uevent.firmware << "' for '" << uevent.path << "'";
++#endif
+     return uevent.firmware;
+ }
+ 
+@@ -192,13 +203,21 @@ void FirmwareHandler::ProcessFirmwareEvent(const std::string& root,
+ 
+     unique_fd loading_fd(open(loading.c_str(), O_WRONLY | O_CLOEXEC));
+     if (loading_fd == -1) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("firmware", "couldn't open firmware loading fd for %s", firmware.c_str());
++#else
+         PLOG(ERROR) << "couldn't open firmware loading fd for " << firmware;
++#endif
+         return;
+     }
+ 
+     unique_fd data_fd(open(data.c_str(), O_WRONLY | O_CLOEXEC));
+     if (data_fd == -1) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("firmware", "couldn't open firmware data fd for %s", firmware.c_str());
++#else
+         PLOG(ERROR) << "couldn't open firmware data fd for " << firmware;
++#endif
+         return;
+     }
+ 
+@@ -233,7 +252,11 @@ try_loading_again:
+         goto try_loading_again;
+     }
+ 
++#if defined(__ANDROID__)
++    KLOG_ERROR("firmware", "could not find firmware for %s", firmware.c_str());
++#else
+     LOG(ERROR) << "firmware: could not find firmware for " << firmware;
++#endif
+     for (const auto& message : attempted_paths_and_errors) {
+         LOG(ERROR) << message;
+     }
+@@ -254,7 +277,11 @@ void FirmwareHandler::HandleUevent(const Uevent& uevent) {
+         Timer t;
+         auto firmware = GetFirmwarePath(uevent);
+         ProcessFirmwareEvent("/sys" + uevent.path, firmware);
++#if defined(__ANDROID__)
++        KLOG_INFO("firmware", "loading %s took %lldms", uevent.path.c_str(), t.duration().count());
++#else
+         LOG(INFO) << "loading " << uevent.path << " took " << t;
++#endif
+         _exit(EXIT_SUCCESS);
+     }
+ }
+diff --git a/libmodprobe/Android.bp b/libmodprobe/Android.bp
+index 78da46cf1..0cd33acdd 100644
+--- a/libmodprobe/Android.bp
++++ b/libmodprobe/Android.bp
+@@ -11,6 +11,7 @@ cc_library_static {
+     ],
+     shared_libs: [
+         "libbase",
++        "libcutils",
+     ],
+     export_include_dirs: ["include/"],
+ }
+diff --git a/libmodprobe/libmodprobe.cpp b/libmodprobe/libmodprobe.cpp
+index 15dc3f1df..d59c9bbae 100644
+--- a/libmodprobe/libmodprobe.cpp
++++ b/libmodprobe/libmodprobe.cpp
+@@ -33,6 +33,10 @@
+ #include <android-base/strings.h>
+ #include <android-base/unique_fd.h>
+ 
++#if defined(__ANDROID__)
++#include <cutils/klog.h>
++#endif
++
+ std::string Modprobe::MakeCanonical(const std::string& module_path) {
+     auto start = module_path.find_last_of('/');
+     if (start == std::string::npos) {
+@@ -45,7 +49,11 @@ std::string Modprobe::MakeCanonical(const std::string& module_path) {
+         end -= 3;
+     }
+     if ((end - start) <= 1) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "malformed module name: %s", module_path.c_str());
++#else
+         LOG(ERROR) << "malformed module name: " << module_path;
++#endif
+         return "";
+     }
+     std::string module_name = module_path.substr(start, end - start);
+@@ -67,7 +75,11 @@ bool Modprobe::ParseDepCallback(const std::string& base_path,
+     if (pos != std::string::npos) {
+         deps.emplace_back(prefix + args[0].substr(0, pos));
+     } else {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "dependency lines must start with name followed by ':'");
++#else
+         LOG(ERROR) << "dependency lines must start with name followed by ':'";
++#endif
+     }
+ 
+     // Remaining items are dependencies of our module
+@@ -94,12 +106,20 @@ bool Modprobe::ParseAliasCallback(const std::vector<std::string>& args) {
+     const std::string& type = *it++;
+ 
+     if (type != "alias") {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "non-alias line encountered in modules.alias, found %s", type.c_str());
++#else
+         LOG(ERROR) << "non-alias line encountered in modules.alias, found " << type;
++#endif
+         return false;
+     }
+ 
+     if (args.size() != 3) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "alias lines in modules.alias must have 3 entries, not %d", args.size());
++#else
+         LOG(ERROR) << "alias lines in modules.alias must have 3 entries, not " << args.size();
++#endif
+         return false;
+     }
+ 
+@@ -116,12 +136,20 @@ bool Modprobe::ParseSoftdepCallback(const std::vector<std::string>& args) {
+     std::string state = "";
+ 
+     if (type != "softdep") {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "non-softdep line encountered in modules.softdep, found %s", type.c_str());
++#else
+         LOG(ERROR) << "non-softdep line encountered in modules.softdep, found " << type;
++#endif
+         return false;
+     }
+ 
+     if (args.size() < 4) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "softdep lines in modules.softdep must have at least 4 entries");
++#else
+         LOG(ERROR) << "softdep lines in modules.softdep must have at least 4 entries";
++#endif
+         return false;
+     }
+ 
+@@ -133,7 +161,11 @@ bool Modprobe::ParseSoftdepCallback(const std::vector<std::string>& args) {
+             continue;
+         }
+         if (state == "") {
++#if defined(__ANDROID__)
++            KLOG_ERROR("modprobe", "malformed modules.softdep at token %s", token.c_str());
++#else
+             LOG(ERROR) << "malformed modules.softdep at token " << token;
++#endif
+             return false;
+         }
+         if (state == "pre:") {
+@@ -164,12 +196,20 @@ bool Modprobe::ParseOptionsCallback(const std::vector<std::string>& args) {
+     const std::string& type = *it++;
+ 
+     if (type != "options") {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "non-options line encountered in modules.options");
++#else
+         LOG(ERROR) << "non-options line encountered in modules.options";
++#endif
+         return false;
+     }
+ 
+     if (args.size() < 2) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "lines in modules.options must have at least 2 entries, not %d", args.size());
++#else
+         LOG(ERROR) << "lines in modules.options must have at least 2 entries, not " << args.size();
++#endif
+         return false;
+     }
+ 
+@@ -190,7 +230,11 @@ bool Modprobe::ParseOptionsCallback(const std::vector<std::string>& args) {
+ 
+     auto [unused, inserted] = this->module_options_.emplace(canonical_name, options);
+     if (!inserted) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "multiple options lines present for module %s", module.c_str());
++#else
+         LOG(ERROR) << "multiple options lines present for module " << module;
++#endif
+         return false;
+     }
+     return true;
+@@ -201,12 +245,20 @@ bool Modprobe::ParseBlacklistCallback(const std::vector<std::string>& args) {
+     const std::string& type = *it++;
+ 
+     if (type != "blacklist") {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "non-blacklist line encountered in modules.blacklist");
++#else
+         LOG(ERROR) << "non-blacklist line encountered in modules.blacklist";
++#endif
+         return false;
+     }
+ 
+     if (args.size() != 2) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "lines in modules.blacklist must have exactly 2 entries, not %d", args.size());
++#else
+         LOG(ERROR) << "lines in modules.blacklist must have exactly 2 entries, not " << args.size();
++#endif
+         return false;
+     }
+ 
+@@ -378,13 +430,21 @@ std::vector<std::string> Modprobe::GetDependencies(const std::string& module) {
+ 
+ bool Modprobe::InsmodWithDeps(const std::string& module_name, const std::string& parameters) {
+     if (module_name.empty()) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "Need valid module name, given: %s", module_name.c_str());
++#else
+         LOG(ERROR) << "Need valid module name, given: " << module_name;
++#endif
+         return false;
+     }
+ 
+     auto dependencies = GetDependencies(module_name);
+     if (dependencies.empty()) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "Module %s not in dependency file", module_name.c_str());
++#else
+         LOG(ERROR) << "Module " << module_name << " not in dependency file";
++#endif
+         return false;
+     }
+ 
+@@ -427,6 +487,12 @@ bool Modprobe::LoadWithAliases(const std::string& module_name, bool strict,
+         return true;
+     }
+ 
++#if defined(__ANDROID__)
++    KLOG_INFO("modprobe", "LoadWithAliases: %s => %s", module_name.c_str(), canonical_name.c_str());
++#else
++    LOG(INFO) << "LoadWithAliases: " << module_name << " => " << canonical_name;
++#endif
++
+     std::set<std::string> modules_to_load = {canonical_name};
+     bool module_loaded = false;
+ 
+@@ -434,7 +500,11 @@ bool Modprobe::LoadWithAliases(const std::string& module_name, bool strict,
+     // may alias themselves to the requested name)
+     for (const auto& [alias, aliased_module] : module_aliases_) {
+         if (fnmatch(alias.c_str(), module_name.c_str(), 0) != 0) continue;
++#if defined(__ANDROID__)
++        KLOG_INFO("modprobe", "Found alias for '%s': %s", module_name.c_str(), aliased_module.c_str());
++#else
+         LOG(VERBOSE) << "Found alias for '" << module_name << "': '" << aliased_module;
++#endif
+         if (module_loaded_.count(MakeCanonical(aliased_module))) continue;
+         modules_to_load.emplace(aliased_module);
+     }
+@@ -446,7 +516,11 @@ bool Modprobe::LoadWithAliases(const std::string& module_name, bool strict,
+     }
+ 
+     if (strict && !module_loaded) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "LoadWithAliases was unable to load %s", module_name.c_str());
++#else
+         LOG(ERROR) << "LoadWithAliases was unable to load " << module_name;
++#endif
+         return false;
+     }
+     return true;
+@@ -466,7 +540,11 @@ bool Modprobe::LoadListedModules(bool strict) {
+ bool Modprobe::Remove(const std::string& module_name) {
+     auto dependencies = GetDependencies(MakeCanonical(module_name));
+     if (dependencies.empty()) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "Empty dependencies for module %s", module_name.c_str());
++#else
+         LOG(ERROR) << "Empty dependencies for module " << module_name;
++#endif
+         return false;
+     }
+     if (!Rmmod(dependencies[0])) {
+diff --git a/libmodprobe/libmodprobe_ext.cpp b/libmodprobe/libmodprobe_ext.cpp
+index 99472c14d..0ed77a8cc 100644
+--- a/libmodprobe/libmodprobe_ext.cpp
++++ b/libmodprobe/libmodprobe_ext.cpp
+@@ -23,6 +23,10 @@
+ 
+ #include <modprobe/modprobe.h>
+ 
++#if defined(__ANDROID__)
++#include <cutils/klog.h>
++#endif
++
+ std::string Modprobe::GetKernelCmdline(void) {
+     std::string cmdline;
+     if (!android::base::ReadFileToString("/proc/cmdline", &cmdline)) {
+@@ -35,7 +39,11 @@ bool Modprobe::Insmod(const std::string& path_name, const std::string& parameter
+     android::base::unique_fd fd(
+             TEMP_FAILURE_RETRY(open(path_name.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC)));
+     if (fd == -1) {
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "Could not open module '%s'", path_name.c_str());
++#else
+         LOG(ERROR) << "Could not open module '" << path_name << "'";
++#endif
+         return false;
+     }
+ 
+@@ -49,7 +57,11 @@ bool Modprobe::Insmod(const std::string& path_name, const std::string& parameter
+         options = options + " " + parameters;
+     }
+ 
++#if defined(__ANDROID__)
++    KLOG_INFO("modprobe", "Loading module %s with args \"%s\"", path_name.c_str(), options.c_str());
++#else
+     LOG(INFO) << "Loading module " << path_name << " with args \"" << options << "\"";
++#endif
+     int ret = syscall(__NR_finit_module, fd.get(), options.c_str(), 0);
+     if (ret != 0) {
+         if (errno == EEXIST) {
+@@ -57,11 +69,19 @@ bool Modprobe::Insmod(const std::string& path_name, const std::string& parameter
+             module_loaded_.emplace(canonical_name);
+             return true;
+         }
++#if defined(__ANDROID__)
++        KLOG_ERROR("modprobe", "Failed to insmod '%s' with args '%s'", path_name.c_str(), options.c_str());
++#else
+         LOG(ERROR) << "Failed to insmod '" << path_name << "' with args '" << options << "'";
++#endif
+         return false;
+     }
+ 
++#if defined(__ANDROID__)
++    KLOG_INFO("modprobe", "Loaded kernel module %s", path_name.c_str());
++#else
+     LOG(INFO) << "Loaded kernel module " << path_name;
++#endif
+     module_loaded_.emplace(canonical_name);
+     return true;
+ }
+@@ -80,7 +100,11 @@ bool Modprobe::Rmmod(const std::string& module_name) {
+ bool Modprobe::ModuleExists(const std::string& module_name) {
+     struct stat fileStat;
+     if (blacklist_enabled && module_blacklist_.count(module_name)) {
++#if defined(__ANDROID__)
++        KLOG_INFO("modprobe", "module %s is blacklisted", module_name.c_str());
++#else
+         LOG(INFO) << "module " << module_name << " is blacklisted";
++#endif
+         return false;
+     }
+     auto deps = GetDependencies(module_name);
+@@ -89,11 +113,19 @@ bool Modprobe::ModuleExists(const std::string& module_name) {
+         return false;
+     }
+     if (stat(deps.front().c_str(), &fileStat)) {
++#if defined(__ANDROID__)
++        KLOG_INFO("modprobe", "module %s does not exist", module_name.c_str());
++#else
+         LOG(INFO) << "module " << module_name << " does not exist";
++#endif
+         return false;
+     }
+     if (!S_ISREG(fileStat.st_mode)) {
++#if defined(__ANDROID__)
++        KLOG_INFO("modprobe", "module %s is not a regular file", module_name.c_str());
++#else
+         LOG(INFO) << "module " << module_name << " is not a regular file";
++#endif
+         return false;
+     }
+     return true;
+diff --git a/toolbox/Android.bp b/toolbox/Android.bp
+index 4ca5f5a0e..1d76c04ab 100644
+--- a/toolbox/Android.bp
++++ b/toolbox/Android.bp
+@@ -33,6 +33,7 @@ cc_defaults {
+     ],
+     shared_libs: [
+         "libbase",
++        "libcutils",
+     ],
+     static_libs: [
+         "libmodprobe",
+-- 
+2.25.1
+

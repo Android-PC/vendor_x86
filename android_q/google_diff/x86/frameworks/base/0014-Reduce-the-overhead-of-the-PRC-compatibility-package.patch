@@ -1,7 +1,7 @@
-From db855fc1df53a59f0c6b5ea2e87eae86618cbfed Mon Sep 17 00:00:00 2001
+From b03d67024fb49129673934521aecbe709d034954 Mon Sep 17 00:00:00 2001
 From: xiajiang <xia1.jiang@intel.com>
 Date: Mon, 21 Mar 2016 12:26:06 -0400
-Subject: [PATCH 14/20] Reduce the overhead of the PRC compatibility package
+Subject: [PATCH 14/23] Reduce the overhead of the PRC compatibility package
  feature during system bootup
 
 The PRC compatibility package introduced too heavy overhead
@@ -519,5 +519,5 @@ index 627adbf7c4f..36eac3b46b1 100644
      {"hasRenderscriptBitcode", "(J)I",
              (void *)com_android_internal_content_NativeLibraryHelper_hasRenderscriptBitcode},
 -- 
-2.21.0
+2.25.1
 

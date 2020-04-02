@@ -1,0 +1,60 @@
+From 3f6b2a584712e0c394d09f2f2f72b31293c2468a Mon Sep 17 00:00:00 2001
+From: Orion Hodson <oth@google.com>
+Date: Fri, 13 Mar 2020 15:03:55 +0000
+Subject: [PATCH 5/5] Allow UnixChannelFactory initialization during AOT
+
+Previously blocked due to b/109735195, but underlying issues
+now resolved.
+
+Bug: 109735195
+Bug: 144502743
+Test: art/test.py --host --64 --prebuild 071-dexfile-map-cleanup
+Test: atest PreloadCheck
+Change-Id: I9256da7fffc8f64fae0f5423d7d27d126b5b47dc
+---
+ libart/src/main/java/dalvik/system/VMRuntime.java      | 10 ----------
+ .../src/main/java/sun/nio/fs/UnixChannelFactory.java   |  7 -------
+ 2 files changed, 17 deletions(-)
+
+diff --git a/libart/src/main/java/dalvik/system/VMRuntime.java b/libart/src/main/java/dalvik/system/VMRuntime.java
+index 7be8c23f0b..fb51837037 100644
+--- a/libart/src/main/java/dalvik/system/VMRuntime.java
++++ b/libart/src/main/java/dalvik/system/VMRuntime.java
+@@ -659,16 +659,6 @@ public final class VMRuntime {
+         return is64BitInstructionSet(getInstructionSet(abi));
+     }
+ 
+-    /**
+-     * Prevent initialization of the caller's class if they are calling
+-     * from their clinit method. This works because calling a JNI method
+-     * from clinit causes the transactional runtime to abort the current
+-     * transaction.
+-     * @hide
+-     */
+-    @CriticalNative
+-    public static native void doNotInitializeInAot();
+-
+     /**
+      * Return false if the boot class path for the given instruction
+      * set mapped from disk storage, versus being interpretted from
+diff --git a/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java b/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java
+index 9491fd9aae..c6f074e594 100644
+--- a/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java
++++ b/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java
+@@ -47,13 +47,6 @@ class UnixChannelFactory {
+     private static final JavaIOFileDescriptorAccess fdAccess =
+         SharedSecrets.getJavaIOFileDescriptorAccess();
+ 
+-    static {
+-        // b/151107960. This class is on the preloaded-classes-blacklist.
+-        // It would be instantiated during AOT now without this magic
+-        // function call and consequently fail 'atest PreloadCheck'.
+-        dalvik.system.VMRuntime.doNotInitializeInAot();
+-    }
+-
+     protected UnixChannelFactory() {
+     }
+ 
+-- 
+2.25.1
+

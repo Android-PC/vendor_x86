@@ -1,0 +1,35 @@
+From c32dd8ca9611333868f5e8e4cd9c824367967ab4 Mon Sep 17 00:00:00 2001
+From: Elliott Hughes <enh@google.com>
+Date: Fri, 6 Mar 2020 18:16:54 -0800
+Subject: [PATCH] Remove mips workaround.
+
+Test: treehugger
+Change-Id: If2eeebfc1fddebc19ba780c1aaadd929a2db1919
+---
+ Android.bp | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/Android.bp b/Android.bp
+index 8d06c40..9f99b8b 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -15,16 +15,6 @@
+ cc_library_static {
+     name: "external_seccomp_tests",
+ 
+-    // mips and mips64 don't support Seccomp.
+-    arch: {
+-        mips: {
+-            enabled: false,
+-        },
+-        mips64: {
+-            enabled: false,
+-        },
+-    },
+-
+     srcs: [
+        "linux/seccomp_bpf.c",
+        "seccomp_bpf_tests.c",
+-- 
+2.25.1
+

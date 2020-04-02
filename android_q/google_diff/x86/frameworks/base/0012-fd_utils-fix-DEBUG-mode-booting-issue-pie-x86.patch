@@ -1,7 +1,7 @@
-From 3c51bc4f26f4a3aae9606f9118fa7d0fbac68c17 Mon Sep 17 00:00:00 2001
+From 51604a3de7c7f253eba6b8df0c9e71e3559f2372 Mon Sep 17 00:00:00 2001
 From: Mauro Rossi <issor.oruam@gmail.com>
 Date: Fri, 8 Mar 2019 17:28:25 +0100
-Subject: [PATCH 12/20] fd_utils: fix DEBUG mode booting issue (pie-x86)
+Subject: [PATCH 12/23] fd_utils: fix DEBUG mode booting issue (pie-x86)
 
 Porting to pie-x86 codebase of oreo-86 commit
 c283ba107a ("fd_utils: fix DEBUG mode booting issue")
@@ -16,10 +16,10 @@ Suggested by Chris Vandomelen <chris@sightworks.com>.
  1 file changed, 2 insertions(+)
 
 diff --git a/core/jni/fd_utils.cpp b/core/jni/fd_utils.cpp
-index fa5f931470b..e3c7ce3a2f4 100644
+index ca4735ec665..737a0745902 100644
 --- a/core/jni/fd_utils.cpp
 +++ b/core/jni/fd_utils.cpp
-@@ -248,6 +248,8 @@ FileDescriptorInfo* FileDescriptorInfo::CreateFromFd(int fd, fail_fn_t fail_fn)
+@@ -261,6 +261,8 @@ FileDescriptorInfo* FileDescriptorInfo::CreateFromFd(int fd, fail_fn_t fail_fn)
      fail_fn(android::base::StringPrintf("Could not read fd link %s: %s",
                                          fd_path.c_str(),
                                          strerror(errno)));
@@ -29,5 +29,5 @@ index fa5f931470b..e3c7ce3a2f4 100644
  
    if (!whitelist->IsAllowed(file_path)) {
 -- 
-2.21.0
+2.25.1
 

@@ -1,0 +1,55 @@
+From eaf08d0ac2b27cc105c083b9e41038b2b95ee07a Mon Sep 17 00:00:00 2001
+From: Tim Joines <tjoines@google.com>
+Date: Wed, 18 Mar 2020 18:00:41 +0000
+Subject: [PATCH] Revert "Expect vdex files in a target-independent directory
+ in t..."
+
+Revert "Share vdex files in the ART apex between architectures (..."
+
+Revert submission 1254009-vdex-symlinks
+
+Reason for revert: This causing some devices to fail to boot. See b/151836042 for details.
+Reverted Changes:
+Iced89071b:Expect vdex files in a target-independent director...
+Ifbceb8457:Share vdex files in the ART apex between architect...
+
+Change-Id: Icdd6f505fe5f067bfe777f5d618d051b89bdf78f
+---
+ build/apex/art_apex_test.py | 13 +------------
+ 1 file changed, 1 insertion(+), 12 deletions(-)
+
+diff --git a/build/apex/art_apex_test.py b/build/apex/art_apex_test.py
+index f38de66f52..aa07fe2a24 100755
+--- a/build/apex/art_apex_test.py
++++ b/build/apex/art_apex_test.py
+@@ -292,15 +292,6 @@ class Checker:
+     self._expected_file_globs.add(path)
+     return ok
+ 
+-  def check_symlink(self, path):
+-    fs_object = self._provider.get(path)
+-    if fs_object is None:
+-      self.fail('Could not find %s', path)
+-      return
+-    if not fs_object.is_symlink:
+-      self.fail('%s is not a symlink', path)
+-    self._expected_file_globs.add(path)
+-
+   def check_executable(self, filename):
+     path = 'bin/%s' % filename
+     if not self.check_file(path):
+@@ -361,10 +352,8 @@ class Checker:
+   def check_dexpreopt(self, basename):
+     dirs = self.arch_dirs_for_path('javalib')
+     for dir in dirs:
+-      for ext in ['art', 'oat']:
++      for ext in ['art', 'oat', 'vdex']:
+         self.check_file('%s/%s.%s' % (dir, basename, ext))
+-      self.check_symlink('%s/%s.vdex' % (dir, basename))
+-    self.check_file('javalib/%s.%s' % (basename, 'vdex'))
+ 
+   def check_java_library(self, basename):
+     return self.check_file('javalib/%s.jar' % basename)
+-- 
+2.25.1
+

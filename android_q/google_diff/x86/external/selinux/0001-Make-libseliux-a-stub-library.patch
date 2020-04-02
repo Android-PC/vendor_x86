@@ -1,0 +1,44 @@
+From a20cb4e73ac47531b549d18ad2f4fde1c23ead4f Mon Sep 17 00:00:00 2001
+From: Jiyong Park <jiyong@google.com>
+Date: Wed, 11 Mar 2020 13:54:27 +0900
+Subject: [PATCH] Make libseliux a stub library
+
+libselinux is currently being copied to APEXes. This is risky because
+the library is not designed to be portable; part of it is tied to the
+specific version of the Android that it was developed for.
+
+This change fixes the problem by declaring that the library supports
+a stub with the list of C APIs that are included in the stub. Then there
+is only one copy of libselinux in /system/lib and other APEXes use the
+copy by dynamically linking to it.
+
+Bug: 151053366
+Test: m com.android.adbd. It doesn't include libselinux in it.
+Test: m com.android.adbd-deps-info. then inspect
+out/soong/com.android.adbd-deps-info.txt. The dependency to libselinux
+is shown as '(external)'.
+
+Change-Id: I8faf344f3984437e313745e5eda5fdb8e75ce8ab
+---
+ libselinux/Android.bp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libselinux/Android.bp b/libselinux/Android.bp
+index 51af69fa..90dfe183 100644
+--- a/libselinux/Android.bp
++++ b/libselinux/Android.bp
+@@ -207,6 +207,11 @@ cc_library {
+     shared: {
+         shared_libs: ["libpcre2"],
+     },
++
++    stubs: {
++        symbol_file: "exported.map",
++        versions: ["30"],
++    },
+ }
+ 
+ cc_binary_host {
+-- 
+2.25.1
+

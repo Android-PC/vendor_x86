@@ -68,3 +68,8 @@ function get_build_var()
         (\cd $T; build/soong/soong_ui.bash --dumpvar-mode $1)
     fi
 }
+
+function build-x86()
+{
+	bash vendor/x86/build-x86.sh $1 $2 $3
+}

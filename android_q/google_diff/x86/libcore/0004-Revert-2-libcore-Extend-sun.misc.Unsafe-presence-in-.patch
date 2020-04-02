@@ -1,0 +1,157 @@
+From 6e058ca3b8ff44d51103209c5e6e49ee45a6c266 Mon Sep 17 00:00:00 2001
+From: Orion Hodson <oth@google.com>
+Date: Wed, 26 Feb 2020 10:28:23 +0000
+Subject: [PATCH 4/5] Revert^2 "libcore: Extend sun.misc.Unsafe presence in the
+ Core Platform API"
+
+This relands d477f4e609422348bb6be32cd3464bbc9bb7dd0e and reverts
+commit 155369a6c1bfdd02ec98dcd2d22112eeff658337. The revert was based
+on a build that did not have both the art and libcore changes present.
+
+Bug: 144502743
+Test: boot device && adb logcat | grep "Core platform"
+
+Change-Id: I4eff1d3e4237290660a4b028f1a0cd326e829adb
+---
+ .../api/platform/current-api.txt              | 16 +++++
+ .../mmodule/sun/misc/Unsafe.annotated.java    | 64 +++++++++++++++++--
+ 2 files changed, 74 insertions(+), 6 deletions(-)
+
+diff --git a/mmodules/core_platform_api/api/platform/current-api.txt b/mmodules/core_platform_api/api/platform/current-api.txt
+index 1ca16bc169..5d32afc165 100644
+--- a/mmodules/core_platform_api/api/platform/current-api.txt
++++ b/mmodules/core_platform_api/api/platform/current-api.txt
+@@ -1412,14 +1412,30 @@ package sun.misc {
+ 
+   public final class Unsafe {
+     method public int arrayBaseOffset(Class);
++    method public int arrayIndexScale(Class);
++    method @dalvik.annotation.optimization.FastNative public void copyMemory(long, long, long);
++    method @dalvik.annotation.optimization.FastNative public boolean getBoolean(Object, long);
+     method @dalvik.annotation.optimization.FastNative public byte getByte(Object, long);
+     method @dalvik.annotation.optimization.FastNative public byte getByte(long);
++    method @dalvik.annotation.optimization.FastNative public double getDouble(Object, long);
++    method @dalvik.annotation.optimization.FastNative public float getFloat(Object, long);
++    method @dalvik.annotation.optimization.FastNative public int getInt(Object, long);
++    method @dalvik.annotation.optimization.FastNative public int getInt(long);
+     method @dalvik.annotation.optimization.FastNative public long getLong(Object, long);
+     method @dalvik.annotation.optimization.FastNative public long getLong(long);
++    method @dalvik.annotation.optimization.FastNative public Object getObject(Object, long);
+     method public static sun.misc.Unsafe getUnsafe();
+     method public long objectFieldOffset(java.lang.reflect.Field);
++    method @dalvik.annotation.optimization.FastNative public void putBoolean(Object, long, boolean);
+     method @dalvik.annotation.optimization.FastNative public void putByte(Object, long, byte);
+     method @dalvik.annotation.optimization.FastNative public void putByte(long, byte);
++    method @dalvik.annotation.optimization.FastNative public void putDouble(Object, long, double);
++    method @dalvik.annotation.optimization.FastNative public void putFloat(Object, long, float);
++    method @dalvik.annotation.optimization.FastNative public void putInt(Object, long, int);
++    method @dalvik.annotation.optimization.FastNative public void putInt(long, int);
++    method @dalvik.annotation.optimization.FastNative public void putLong(Object, long, long);
++    method @dalvik.annotation.optimization.FastNative public void putLong(long, long);
++    method @dalvik.annotation.optimization.FastNative public void putObject(Object, long, Object);
+   }
+ 
+ }
+diff --git a/ojluni/annotations/mmodule/sun/misc/Unsafe.annotated.java b/ojluni/annotations/mmodule/sun/misc/Unsafe.annotated.java
+index f272a9ab90..a6711e010e 100644
+--- a/ojluni/annotations/mmodule/sun/misc/Unsafe.annotated.java
++++ b/ojluni/annotations/mmodule/sun/misc/Unsafe.annotated.java
+@@ -25,6 +25,8 @@
+ 
+ package sun.misc;
+ 
++// sun.misc.Unsafe is part of the Core Platform API as platform uses protobuf and protobuf uses
++// this API for fast structure updates from native code (b/144502743).
+ @libcore.api.CorePlatformApi
+ @libcore.api.Hide
+ @SuppressWarnings({"unchecked", "deprecation", "all"})
+@@ -40,30 +42,80 @@ public final class Unsafe {
+     }
+ 
+     @libcore.api.CorePlatformApi
+-    public long objectFieldOffset(java.lang.reflect.Field field) {
++    public int arrayBaseOffset(Class clazz) {
+         throw new RuntimeException("Stub!");
+     }
+ 
+     @libcore.api.CorePlatformApi
+-    public int arrayBaseOffset(java.lang.Class clazz) {
++    public int arrayIndexScale(Class clazz) {
+         throw new RuntimeException("Stub!");
+     }
+ 
+     @libcore.api.CorePlatformApi
+-    public native byte getByte(java.lang.Object obj, long offset);
++    public native void copyMemory(long srcAddr, long destAddr, long bytes);
++
++    @libcore.api.CorePlatformApi
++    public native boolean getBoolean(Object obj, long offset);
+ 
+     @libcore.api.CorePlatformApi
+     public native byte getByte(long address);
+ 
+     @libcore.api.CorePlatformApi
+-    public native long getLong(java.lang.Object obj, long offset);
++    public native byte getByte(Object obj, long offset);
++
++    @libcore.api.CorePlatformApi
++    public native double getDouble(Object obj, long offset);
++
++    @libcore.api.CorePlatformApi
++    public native float getFloat(Object obj, long offset);
++
++    @libcore.api.CorePlatformApi
++    public native int getInt(long address);
++
++    @libcore.api.CorePlatformApi
++    public native int getInt(Object obj, long offset);
+ 
+     @libcore.api.CorePlatformApi
+     public native long getLong(long address);
+ 
+     @libcore.api.CorePlatformApi
+-    public native void putByte(java.lang.Object obj, long offset, byte newValue);
++    public native long getLong(Object obj, long offset);
++
++    @libcore.api.CorePlatformApi
++    public native Object getObject(Object obj, long offset);
++
++    @libcore.api.CorePlatformApi
++    public long objectFieldOffset(java.lang.reflect.Field field) {
++        throw new RuntimeException("Stub!");
++    }
++
++    @libcore.api.CorePlatformApi
++    public native void putBoolean(Object obj, long offset, boolean newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putByte(long address, byte newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putByte(Object obj, long offset, byte newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putDouble(Object obj, long offset, double newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putFloat(Object obj, long offset, float newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putInt(long address, int newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putInt(Object obj, long offset, int newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putLong(long address, long newValue);
++
++    @libcore.api.CorePlatformApi
++    public native void putLong(Object obj, long offset, long newValue);
+ 
+     @libcore.api.CorePlatformApi
+-    public native void putByte(long address, byte x);
++    public native void putObject(Object obj, long offset, Object newValue);
+ }
+-- 
+2.25.1
+

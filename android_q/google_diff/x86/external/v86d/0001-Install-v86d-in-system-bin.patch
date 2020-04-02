@@ -1,0 +1,24 @@
+From 0279a3f88e204267aee30008389cd242975c3498 Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@lincor.com>
+Date: Wed, 1 Apr 2020 17:53:15 -0400
+Subject: [PATCH] Install v86d in /system/bin
+
+/sbin has been deprecated in Android R.
+---
+ Android.mk | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Android.mk b/Android.mk
+index 0c0cd60..e945257 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -44,6 +44,5 @@ LOCAL_C_INCLUDES_x86_64 := $(LOCAL_PATH)/x86emu
+ 
+ LOCAL_MODULE := v86d
+ LOCAL_MODULE_TAGS := optional
+-LOCAL_MODULE_PATH := $(TARGET_ROOT_OUT_SBIN)
+ 
+ include $(BUILD_EXECUTABLE)
+-- 
+2.25.1
+

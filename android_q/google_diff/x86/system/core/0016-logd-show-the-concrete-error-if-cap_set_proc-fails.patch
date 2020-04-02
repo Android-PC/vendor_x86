@@ -1,0 +1,25 @@
+From 4aa5aa55ec05390b1ecd299247b98e0afe971d81 Mon Sep 17 00:00:00 2001
+From: Chih-Wei Huang <cwhuang@linux.org.tw>
+Date: Fri, 25 May 2018 18:27:22 +0800
+Subject: [PATCH 16/25] logd: show the concrete error if cap_set_proc fails
+
+---
+ logd/main.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/logd/main.cpp b/logd/main.cpp
+index 23bbf864d..3e29d7fba 100644
+--- a/logd/main.cpp
++++ b/logd/main.cpp
+@@ -101,7 +101,7 @@ static int drop_privs(bool klogd, bool auditd) {
+         return -1;
+     }
+     if (cap_set_proc(caps.get()) < 0) {
+-        android::prdebug("failed to set CAP_SYSLOG or CAP_AUDIT_CONTROL (%d)", errno);
++        android::prdebug("failed to set CAP_SYSLOG or CAP_AUDIT_CONTROL (%s)", strerror(errno));
+         return -1;
+     }
+ 
+-- 
+2.25.1
+

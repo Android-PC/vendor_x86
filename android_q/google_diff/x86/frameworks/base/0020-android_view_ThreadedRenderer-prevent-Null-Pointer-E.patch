@@ -1,7 +1,7 @@
-From c1c971cac66e4d181fa37b62138c43d9f0dd7aa4 Mon Sep 17 00:00:00 2001
+From 4099ff321d0eb50e811ebd609ea21ac65e6a6446 Mon Sep 17 00:00:00 2001
 From: Mauro Rossi <issor.oruam@gmail.com>
 Date: Sun, 3 Mar 2019 16:28:41 +0100
-Subject: [PATCH 20/20] android_view_ThreadedRenderer: prevent Null Pointer
+Subject: [PATCH 20/23] android_view_ThreadedRenderer: prevent Null Pointer
  Exception in createBitmap
 
 To avoid Playstore crashes with nouveau and Hardware Bitmap,
@@ -45,5 +45,5 @@ index f7e9b24e32e..826e1350ee6 100644
              android::bitmap::kBitmapCreateFlag_Premultiplied);
  }
 -- 
-2.21.0
+2.25.1
 

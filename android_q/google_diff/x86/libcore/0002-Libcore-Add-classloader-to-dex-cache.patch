@@ -1,0 +1,39 @@
+From 37d8c4abdf805ade28638bb0bcd3687afc82b421 Mon Sep 17 00:00:00 2001
+From: Andreas Gampe <agampe@fb.com>
+Date: Wed, 4 Mar 2020 00:53:24 +0000
+Subject: [PATCH 2/5] Libcore: Add classloader to dex cache
+
+Live dex caches must keep their associated classloader live. Otherwise
+the classloader may get unloaded, attempting to free DexFiles which
+cannot be unregistered.
+
+Companion to ART change.
+
+Test: art/test/testrunner/testrunner.py -b --host
+Change-Id: I0eed5b3b46ed681c739d6923a57d0878afbba1a7
+---
+ libart/src/main/java/java/lang/DexCache.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libart/src/main/java/java/lang/DexCache.java b/libart/src/main/java/java/lang/DexCache.java
+index f9e3ea3cf3..e35a69d05c 100644
+--- a/libart/src/main/java/java/lang/DexCache.java
++++ b/libart/src/main/java/java/lang/DexCache.java
+@@ -39,6 +39,9 @@ import dalvik.annotation.optimization.FastNative;
+  * A dex cache holds resolved copies of strings, fields, methods, and classes from the dexfile.
+  */
+ final class DexCache {
++    /** The classloader this dex cache is for. */
++    private ClassLoader classLoader;
++
+     /** The location of the associated dex file. */
+     private String location;
+ 
+@@ -125,4 +128,3 @@ final class DexCache {
+     // Only created by the VM.
+     private DexCache() {}
+ }
+-
+-- 
+2.25.1
+

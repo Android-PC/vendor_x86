@@ -1,7 +1,7 @@
-From 4e8820b002e7761c638922889e3b0ec018a20603 Mon Sep 17 00:00:00 2001
+From ecd12351b387c427ed91430506db5206511308ab Mon Sep 17 00:00:00 2001
 From: Robert Crabtree <robertx.l.crabtree@intel.com>
 Date: Wed, 25 Jul 2012 17:53:12 -0700
-Subject: [PATCH 01/10] SW encode: Fix output buffer size
+Subject: [PATCH 01/14] SW encode: Fix output buffer size
 
 The output buffer size needs to be updated if the resolution is updated.
 The output buffer was configured for QCIF resolution when the actual
@@ -14,7 +14,7 @@ Signed-off-by: Robert Crabtree <robertx.l.crabtree@intel.com>
  1 file changed, 27 insertions(+)
 
 diff --git a/media/libstagefright/omx/SoftVideoEncoderOMXComponent.cpp b/media/libstagefright/omx/SoftVideoEncoderOMXComponent.cpp
-index d75acdabf8..11e563cdc2 100644
+index d75acdabf..11e563cdc 100644
 --- a/media/libstagefright/omx/SoftVideoEncoderOMXComponent.cpp
 +++ b/media/libstagefright/omx/SoftVideoEncoderOMXComponent.cpp
 @@ -377,6 +377,33 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalGetParameter(
@@ -52,5 +52,5 @@ index d75acdabf8..11e563cdc2 100644
              return SimpleSoftOMXComponent::internalGetParameter(index, param);
      }
 -- 
-2.21.0
+2.25.1
 

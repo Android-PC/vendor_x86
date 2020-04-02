@@ -1,7 +1,7 @@
-From 59e7585a5f3e1134226ca4c8e423305db706ddf5 Mon Sep 17 00:00:00 2001
+From 52410297d09005020db87eab78ad087be0ef57f5 Mon Sep 17 00:00:00 2001
 From: Daniel Charles <daniel.charles@intel.com>
 Date: Wed, 9 May 2012 11:28:37 -0700
-Subject: [PATCH 02/10] Change max width and height supported by H.263 decoder.
+Subject: [PATCH 02/14] Change max width and height supported by H.263 decoder.
 
 Currently this is set to CIF PAL resolution (352x288) which
 won't calculate the actual output buffer size for higher resolutions
@@ -19,7 +19,7 @@ Signed-off-by: Daniel Charles <daniel.charles@intel.com>
  1 file changed, 6 insertions(+)
 
 diff --git a/media/libstagefright/codecs/m4v_h263/dec/SoftMPEG4.cpp b/media/libstagefright/codecs/m4v_h263/dec/SoftMPEG4.cpp
-index 60750d9a61..c1af555877 100644
+index 60750d9a6..c1af55587 100644
 --- a/media/libstagefright/codecs/m4v_h263/dec/SoftMPEG4.cpp
 +++ b/media/libstagefright/codecs/m4v_h263/dec/SoftMPEG4.cpp
 @@ -60,6 +60,12 @@ SoftMPEG4::SoftMPEG4(
@@ -36,5 +36,5 @@ index 60750d9a61..c1af555877 100644
              kNumInputBuffers,
              352 * 288 * 3 / 2 /* minInputBufferSize */,
 -- 
-2.21.0
+2.25.1
 

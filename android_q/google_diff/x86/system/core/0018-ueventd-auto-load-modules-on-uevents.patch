@@ -1,0 +1,90 @@
+From 7b37717a66c6c9b9f5f5f9e5daa7252651741151 Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@lincor.com>
+Date: Sat, 28 Sep 2019 20:32:44 -0400
+Subject: [PATCH 18/25] ueventd: auto load modules on uevents
+
+---
+ init/ueventd.cpp            |  2 +-
+ libmodprobe/libmodprobe.cpp | 17 +++++++++++++++++
+ rootdir/ueventd.rc          |  1 +
+ 3 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/init/ueventd.cpp b/init/ueventd.cpp
+index 526d6f6a3..989977580 100644
+--- a/init/ueventd.cpp
++++ b/init/ueventd.cpp
+@@ -307,7 +307,7 @@ int ueventd_main(int argc, char** argv) {
+             std::move(ueventd_configuration.external_firmware_handlers)));
+ 
+     if (ueventd_configuration.enable_modalias_handling) {
+-        std::vector<std::string> base_paths = {"/odm/lib/modules", "/vendor/lib/modules"};
++        std::vector<std::string> base_paths = {"/system/lib/modules", "/odm/lib/modules", "/vendor/lib/modules"};
+         uevent_handlers.emplace_back(std::make_unique<ModaliasHandler>(base_paths));
+     }
+     UeventListener uevent_listener(ueventd_configuration.uevent_socket_rcvbuf_size);
+diff --git a/libmodprobe/libmodprobe.cpp b/libmodprobe/libmodprobe.cpp
+index f22bbf18b..15dc3f1df 100644
+--- a/libmodprobe/libmodprobe.cpp
++++ b/libmodprobe/libmodprobe.cpp
+@@ -19,6 +19,8 @@
+ #include <fnmatch.h>
+ #include <sys/stat.h>
+ #include <sys/syscall.h>
++#include <sys/utsname.h>
++#include <unistd.h>
+ 
+ #include <algorithm>
+ #include <set>
+@@ -314,24 +316,39 @@ void Modprobe::ParseKernelCmdlineOptions(void) {
+ 
+ Modprobe::Modprobe(const std::vector<std::string>& base_paths) {
+     using namespace std::placeholders;
++    std::string release;
++    struct utsname uts;
++
++    uname(&uts);
++    release = uts.release;
+ 
+     for (const auto& base_path : base_paths) {
++        const std::string release_base_path = base_path + "/" + release;
++
+         auto alias_callback = std::bind(&Modprobe::ParseAliasCallback, this, _1);
++        ParseCfg(release_base_path + "/modules.alias", alias_callback);
+         ParseCfg(base_path + "/modules.alias", alias_callback);
+ 
++        auto dep_callback_release = std::bind(&Modprobe::ParseDepCallback, this, release_base_path, _1);
++        ParseCfg(release_base_path + "/modules.dep", dep_callback_release);
++
+         auto dep_callback = std::bind(&Modprobe::ParseDepCallback, this, base_path, _1);
+         ParseCfg(base_path + "/modules.dep", dep_callback);
+ 
+         auto softdep_callback = std::bind(&Modprobe::ParseSoftdepCallback, this, _1);
++        ParseCfg(release_base_path + "/modules.softdep", softdep_callback);
+         ParseCfg(base_path + "/modules.softdep", softdep_callback);
+ 
+         auto load_callback = std::bind(&Modprobe::ParseLoadCallback, this, _1);
++        ParseCfg(release_base_path + "/modules.load", load_callback);
+         ParseCfg(base_path + "/modules.load", load_callback);
+ 
+         auto options_callback = std::bind(&Modprobe::ParseOptionsCallback, this, _1);
++        ParseCfg(release_base_path + "/modules.options", options_callback);
+         ParseCfg(base_path + "/modules.options", options_callback);
+ 
+         auto blacklist_callback = std::bind(&Modprobe::ParseBlacklistCallback, this, _1);
++        ParseCfg(release_base_path + "/modules.blacklist", blacklist_callback);
+         ParseCfg(base_path + "/modules.blacklist", blacklist_callback);
+     }
+ 
+diff --git a/rootdir/ueventd.rc b/rootdir/ueventd.rc
+index bfd593199..8e4d57dae 100644
+--- a/rootdir/ueventd.rc
++++ b/rootdir/ueventd.rc
+@@ -1,4 +1,5 @@
+ firmware_directories /system/lib/firmware
++modalias_handling enabled
+ uevent_socket_rcvbuf_size 16M
+ 
+ subsystem graphics
+-- 
+2.25.1
+

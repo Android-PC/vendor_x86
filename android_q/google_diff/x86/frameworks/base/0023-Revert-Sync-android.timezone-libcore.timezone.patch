@@ -1,0 +1,26 @@
+From 022b8f90fd18061858586fa5b3b420e828a1669d Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@lincor.com>
+Date: Mon, 30 Mar 2020 17:21:39 -0400
+Subject: [PATCH 23/23] Revert "Sync android.timezone / libcore.timezone"
+
+This reverts commit e2c60dc6ab3db47c5e0adfe18dd393bdc2ff4d4f.
+---
+ core/java/android/timezone/CountryTimeZones.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/core/java/android/timezone/CountryTimeZones.java b/core/java/android/timezone/CountryTimeZones.java
+index 8fd303b8a64..a8db50e5178 100644
+--- a/core/java/android/timezone/CountryTimeZones.java
++++ b/core/java/android/timezone/CountryTimeZones.java
+@@ -158,7 +158,7 @@ public final class CountryTimeZones {
+      * supplied.
+      */
+     public boolean matchesCountryCode(@NonNull String countryIso) {
+-        return mDelegate.matchesCountryCode(countryIso);
++        return mDelegate.isForCountryCode(countryIso);
+     }
+ 
+     /**
+-- 
+2.25.1
+

@@ -62,7 +62,8 @@ apply_patch() {
     c=`git log --pretty=format:%aD | grep "$b"`
 
     if [[ "$c" == "" ]] ; then
-      git am -3 $pd/$i >& /dev/null
+      # git apply --reject --whitespace=fix $pd/$i >& /dev/null
+      git am -3 --ignore-whitespace $pd/$i >& /dev/null
       if [[ $? == 0 ]]; then
         echo "        Applying          $i"
       else
@@ -72,7 +73,8 @@ apply_patch() {
         conflict_list="$current_project $conflict_list"
       fi
     else
-      echo "        Already applied         $i"
+      echo "        Already applied         $i" 
+      echo "	" $c
     fi
   done
 }

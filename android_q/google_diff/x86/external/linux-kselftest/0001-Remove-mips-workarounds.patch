@@ -1,0 +1,33 @@
+From 20fbceda29b0da65c99e6590ff0c6d4e890ee9b8 Mon Sep 17 00:00:00 2001
+From: Elliott Hughes <enh@google.com>
+Date: Fri, 6 Mar 2020 18:26:03 -0800
+Subject: [PATCH] Remove mips workarounds.
+
+Test: treehugger
+Change-Id: Ibb259a354bbefc1739e8b035fcb26d8b3ec4115a
+---
+ Android.bp | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/Android.bp b/Android.bp
+index 4a527c7cd5b8..2d11485991de 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -49,14 +49,6 @@ cc_defaults {
+     no_named_install_directory: true,
+ 
+     test_per_src: true,
+-    arch: {
+-        mips: {
+-            enabled: false,
+-        },
+-        mips64: {
+-            enabled: false,
+-        },
+-    },
+ }
+ 
+ // breakpoints test
+-- 
+2.25.1
+

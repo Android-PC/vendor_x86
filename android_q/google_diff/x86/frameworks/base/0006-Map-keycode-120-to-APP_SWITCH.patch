@@ -1,7 +1,7 @@
-From 04fb059f144ab56467d3d72147f8934c08d0b0e1 Mon Sep 17 00:00:00 2001
+From 71f27e6e6eed43a939a4e74d563050de972ea458 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Mon, 22 Dec 2014 12:08:17 +0800
-Subject: [PATCH 06/20] Map keycode 120 to APP_SWITCH
+Subject: [PATCH 06/23] Map keycode 120 to APP_SWITCH
 
 Define the unused keycode 120 to be APP_SWITCH.
 ---
@@ -22,5 +22,5 @@ index 7cf0a3e61a4..cc5ea4bb170 100644
  key 122   KANA
  key 123   EISU
 -- 
-2.21.0
+2.25.1
 

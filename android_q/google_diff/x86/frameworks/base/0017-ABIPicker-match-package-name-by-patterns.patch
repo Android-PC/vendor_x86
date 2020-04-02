@@ -1,7 +1,7 @@
-From 2663b45b106bf11dc811f2bca294572200cf8d01 Mon Sep 17 00:00:00 2001
+From fcc445d2c53e94ba389c2e2cb216b7fb46a5c973 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Mon, 18 Jul 2016 22:32:13 +0800
-Subject: [PATCH 17/20] ABIPicker: match package name by patterns
+Subject: [PATCH 17/23] ABIPicker: match package name by patterns
 
 PRC apps from different markets usually have different package names.
 This change tries to match them by patterns.
@@ -47,5 +47,5 @@ index 3fc6bad19ec..b20f4cd2f92 100644
            break;
         }
 -- 
-2.21.0
+2.25.1
 

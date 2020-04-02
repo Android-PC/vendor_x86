@@ -1,0 +1,44 @@
+From c823d3a603a7ee014ac0c308967d5d3600c145e3 Mon Sep 17 00:00:00 2001
+From: Jon West <electrikjesus@gmail.com>
+Date: Thu, 2 Apr 2020 09:50:38 -0400
+Subject: [PATCH] libmodprobe - switch to long int for klog errors
+
+Change-Id: I6572940dc9b7aae9abe30b65e8ec727cc319ccc9
+---
+ libmodprobe/libmodprobe.cpp | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libmodprobe/libmodprobe.cpp b/libmodprobe/libmodprobe.cpp
+index d59c9bbae..862e7e3c7 100644
+--- a/libmodprobe/libmodprobe.cpp
++++ b/libmodprobe/libmodprobe.cpp
+@@ -116,7 +116,7 @@ bool Modprobe::ParseAliasCallback(const std::vector<std::string>& args) {
+ 
+     if (args.size() != 3) {
+ #if defined(__ANDROID__)
+-        KLOG_ERROR("modprobe", "alias lines in modules.alias must have 3 entries, not %d", args.size());
++        KLOG_ERROR("modprobe", "alias lines in modules.alias must have 3 entries, not %ld", args.size());
+ #else
+         LOG(ERROR) << "alias lines in modules.alias must have 3 entries, not " << args.size();
+ #endif
+@@ -206,7 +206,7 @@ bool Modprobe::ParseOptionsCallback(const std::vector<std::string>& args) {
+ 
+     if (args.size() < 2) {
+ #if defined(__ANDROID__)
+-        KLOG_ERROR("modprobe", "lines in modules.options must have at least 2 entries, not %d", args.size());
++        KLOG_ERROR("modprobe", "lines in modules.options must have at least 2 entries, not %ld", args.size());
+ #else
+         LOG(ERROR) << "lines in modules.options must have at least 2 entries, not " << args.size();
+ #endif
+@@ -255,7 +255,7 @@ bool Modprobe::ParseBlacklistCallback(const std::vector<std::string>& args) {
+ 
+     if (args.size() != 2) {
+ #if defined(__ANDROID__)
+-        KLOG_ERROR("modprobe", "lines in modules.blacklist must have exactly 2 entries, not %d", args.size());
++        KLOG_ERROR("modprobe", "lines in modules.blacklist must have exactly 2 entries, not %ld", args.size());
+ #else
+         LOG(ERROR) << "lines in modules.blacklist must have exactly 2 entries, not " << args.size();
+ #endif
+-- 
+2.17.1
+

@@ -1,0 +1,32 @@
+From 91d2956bf6ce2f213f5cd151690d019d841fb117 Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@lincor.com>
+Date: Tue, 31 Mar 2020 18:11:44 -0400
+Subject: [PATCH 1/2] Allow to run m4 and zcat
+
+---
+ ui/build/paths/config.go | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ui/build/paths/config.go b/ui/build/paths/config.go
+index 57174013..b577863e 100644
+--- a/ui/build/paths/config.go
++++ b/ui/build/paths/config.go
+@@ -87,6 +87,7 @@ var Configuration = map[string]PathConfig{
+ 	"java":    Allowed,
+ 	"javap":   Allowed,
+ 	"lsof":    Allowed,
++	"m4":      Allowed,
+ 	"openssl": Allowed,
+ 	"patch":   Allowed,
+ 	"pstree":  Allowed,
+@@ -94,6 +95,7 @@ var Configuration = map[string]PathConfig{
+ 	"sh":      Allowed,
+ 	"tr":      Allowed,
+ 	"unzip":   Allowed,
++	"zcat":    Allowed,
+ 	"zip":     Allowed,
+ 
+ 	// Host toolchain is removed. In-tree toolchain should be used instead.
+-- 
+2.25.1
+

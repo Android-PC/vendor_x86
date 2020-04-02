@@ -1,7 +1,7 @@
-From 123fcd31d098d682894bd708980756e419a22aa6 Mon Sep 17 00:00:00 2001
+From ce3ecf6991a97209f0761338a7c36dfcacd2457c Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Thu, 18 Oct 2018 15:47:19 +0800
-Subject: [PATCH 19/20] pm: ignore restorecon failure
+Subject: [PATCH 19/23] pm: ignore restorecon failure
 
 On the 9p filesystem, restorecon won't work. It causes apk can't be
 installed. Just ignore the errors to workaround it.
@@ -11,10 +11,10 @@ installed. Just ignore the errors to workaround it.
  2 files changed, 1 insertion(+), 2 deletions(-)
 
 diff --git a/services/core/java/com/android/server/pm/PackageInstallerService.java b/services/core/java/com/android/server/pm/PackageInstallerService.java
-index 0032e9a8ea5..fb43dffc5b1 100644
+index b217dce885d..5e34f5e02d3 100644
 --- a/services/core/java/com/android/server/pm/PackageInstallerService.java
 +++ b/services/core/java/com/android/server/pm/PackageInstallerService.java
-@@ -744,7 +744,7 @@ public class PackageInstallerService extends IPackageInstaller.Stub implements
+@@ -753,7 +753,7 @@ public class PackageInstallerService extends IPackageInstaller.Stub implements
          }
  
          if (!SELinux.restorecon(stageDir)) {
@@ -24,10 +24,10 @@ index 0032e9a8ea5..fb43dffc5b1 100644
      }
  
 diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
-index 7469e099421..0fda87cdee1 100644
+index ce0c21cb3f1..c13dc78be6c 100644
 --- a/services/core/java/com/android/server/pm/PackageManagerService.java
 +++ b/services/core/java/com/android/server/pm/PackageManagerService.java
-@@ -15792,7 +15792,6 @@ public class PackageManagerService extends IPackageManager.Stub
+@@ -15299,7 +15299,6 @@ public class PackageManagerService extends IPackageManager.Stub
  
              if (!SELinux.restoreconRecursive(afterCodeFile)) {
                  Slog.w(TAG, "Failed to restorecon");
@@ -36,5 +36,5 @@ index 7469e099421..0fda87cdee1 100644
  
              // Reflect the rename internally
 -- 
-2.21.0
+2.25.1
 

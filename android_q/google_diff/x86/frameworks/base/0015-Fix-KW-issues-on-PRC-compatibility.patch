@@ -1,7 +1,7 @@
-From 3f62ab688ace51c92c3cdaa831a451ce3fec1d61 Mon Sep 17 00:00:00 2001
+From 58e589764f582f27f5da5cca6bbfb806e0018d55 Mon Sep 17 00:00:00 2001
 From: jgu21 <jinghui.gu@intel.com>
 Date: Wed, 30 Mar 2016 02:57:38 -0400
-Subject: [PATCH 15/20] Fix KW issues on PRC compatibility
+Subject: [PATCH 15/23] Fix KW issues on PRC compatibility
 
 Fix KW issues on PRC compatibility,introduced by below commit.
 https://android.intel.com/#/c/484542/
@@ -141,5 +141,5 @@ index 36eac3b46b1..8bb5a86a083 100644
                  == abiName->size()) {
              if (access(abiFlag, F_OK) == 0) {
 -- 
-2.21.0
+2.25.1
 

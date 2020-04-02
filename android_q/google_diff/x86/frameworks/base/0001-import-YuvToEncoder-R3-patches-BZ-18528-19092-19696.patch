@@ -1,7 +1,7 @@
-From 8936a9e1f539e79e4054d202d5bfc88446d42e83 Mon Sep 17 00:00:00 2001
+From 60e9ecf211fcd92b4ec2028e47d1a5c6c48d709c Mon Sep 17 00:00:00 2001
 From: Zhao Liang <leo.zhao@intel.com>
 Date: Fri, 20 Jul 2012 11:56:51 +0800
-Subject: [PATCH 01/20] import YuvToEncoder R3 patches, BZ 18528, 19092, 19696
+Subject: [PATCH 01/23] import YuvToEncoder R3 patches, BZ 18528, 19092, 19696
 
 BZ: 47824
 
@@ -105,5 +105,5 @@ index 09adc824e52..2f5507dd99d 100644
          uint8_t* vu = vuPlanar + offset;
          for (int i = 0; i < (width >> 1); ++i) {
 -- 
-2.21.0
+2.25.1
 

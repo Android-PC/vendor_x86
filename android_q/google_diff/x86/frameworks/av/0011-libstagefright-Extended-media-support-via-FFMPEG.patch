@@ -1,7 +1,7 @@
-From 726a3318b48e984f8b985f93c003831d8331b6af Mon Sep 17 00:00:00 2001
+From 578a431046cb1189a47bded12ccc221c5ecfa56b Mon Sep 17 00:00:00 2001
 From: Michael Goffioul <michael.goffioul@gmail.com>
 Date: Sun, 2 Jun 2019 18:55:36 -0400
-Subject: [PATCH 11/15] libstagefright: Extended media support via FFMPEG
+Subject: [PATCH 11/14] libstagefright: Extended media support via FFMPEG
 
  * Original work by Michael Chen - https://github.com/omxcodec
  * Original Kitkat port by Chih-Wei Huang / Android X86 project
@@ -17,28 +17,127 @@ Subject: [PATCH 11/15] libstagefright: Extended media support via FFMPEG
 
 Change-Id: Ie871b56f6f6d895a87de8c8920e9e8692382b420
 ---
+ media/libdatasource/FileSource.cpp            |   16 +
+ .../include/datasource/FileSource.h           |    7 +
+ .../StagefrightMetadataRetriever.cpp          |   12 +-
  .../nuplayer/NuPlayerDecoder.cpp              |   15 +-
- media/libstagefright/ACodec.cpp               |  140 +-
- media/libstagefright/Android.bp               |   25 +
- media/libstagefright/ClearFileSource.cpp      |   16 +
- media/libstagefright/FFMPEGSoftCodec.cpp      | 1315 +++++++++++++++++
+ media/libstagefright/ACodec.cpp               |  136 +-
+ media/libstagefright/Android.bp               |   15 +
+ media/libstagefright/FFMPEGSoftCodec.cpp      | 1308 +++++++++++++++++
  media/libstagefright/MediaCodec.cpp           |    2 +-
  .../libstagefright/MediaExtractorFactory.cpp  |    6 +
- .../StagefrightMetadataRetriever.cpp          |   12 +-
  media/libstagefright/Utils.cpp                |   32 +-
  media/libstagefright/foundation/MediaDefs.cpp |   33 +
  .../media/stagefright/foundation/MediaDefs.h  |   71 +
  .../include/media/stagefright/ACodec.h        |   10 +-
- .../media/stagefright/ClearFileSource.h       |    7 +
  .../media/stagefright/FFMPEGSoftCodec.h       |  138 ++
  .../include/media/stagefright/MetaDataBase.h  |   50 +
  media/libstagefright/omx/OMXUtils.cpp         |   44 +
- 16 files changed, 1898 insertions(+), 18 deletions(-)
+ 16 files changed, 1877 insertions(+), 18 deletions(-)
  create mode 100644 media/libstagefright/FFMPEGSoftCodec.cpp
  create mode 100644 media/libstagefright/include/media/stagefright/FFMPEGSoftCodec.h
 
+diff --git a/media/libdatasource/FileSource.cpp b/media/libdatasource/FileSource.cpp
+index bbf7dda23..400c2fd93 100644
+--- a/media/libdatasource/FileSource.cpp
++++ b/media/libdatasource/FileSource.cpp
+@@ -31,6 +31,7 @@ namespace android {
+ 
+ FileSource::FileSource(const char *filename)
+     : mFd(-1),
++      mUri(filename),
+       mOffset(0),
+       mLength(-1),
+       mName("<null>") {
+@@ -87,6 +88,7 @@ FileSource::FileSource(int fd, int64_t offset, int64_t length)
+             (long long) mOffset,
+             (long long) mLength);
+ 
++    fetchUriFromFd(fd);
+ }
+ 
+ FileSource::~FileSource() {
+@@ -140,4 +142,18 @@ status_t FileSource::getSize(off64_t *size) {
+     return OK;
+ }
+ 
++void FileSource::fetchUriFromFd(int fd) {
++    ssize_t len = 0;
++    char path[PATH_MAX] = {0};
++    char link[PATH_MAX] = {0};
++
++    mUri.clear();
++
++    snprintf(path, PATH_MAX, "/proc/%d/fd/%d", getpid(), fd);
++    if ((len = readlink(path, link, sizeof(link)-1)) != -1) {
++        link[len] = '\0';
++        mUri.setTo(link);
++    }
++}
++
+ }  // namespace android
+diff --git a/media/libdatasource/include/datasource/FileSource.h b/media/libdatasource/include/datasource/FileSource.h
+index dee0c335e..5033b7d2e 100644
+--- a/media/libdatasource/include/datasource/FileSource.h
++++ b/media/libdatasource/include/datasource/FileSource.h
+@@ -46,11 +46,16 @@ public:
+         return mName;
+     }
+ 
++    virtual String8 getUri() {
++        return mUri;
++    }
++
+ protected:
+     virtual ~FileSource();
+     virtual ssize_t readAt_l(off64_t offset, void *data, size_t size);
+ 
+     int mFd;
++    String8 mUri;
+     int64_t mOffset;
+     int64_t mLength;
+     Mutex mLock;
+@@ -60,6 +65,8 @@ private:
+ 
+     FileSource(const FileSource &);
+     FileSource &operator=(const FileSource &);
++
++    void fetchUriFromFd(int fd);
+ };
+ 
+ }  // namespace android
+diff --git a/media/libmediaplayerservice/StagefrightMetadataRetriever.cpp b/media/libmediaplayerservice/StagefrightMetadataRetriever.cpp
+index 1aae24188..98313860b 100644
+--- a/media/libmediaplayerservice/StagefrightMetadataRetriever.cpp
++++ b/media/libmediaplayerservice/StagefrightMetadataRetriever.cpp
+@@ -30,6 +30,7 @@
+ #include <media/IMediaHTTPService.h>
+ #include <media/stagefright/foundation/ADebug.h>
+ #include <media/stagefright/foundation/AMessage.h>
++#include <media/stagefright/FFMPEGSoftCodec.h>
+ #include <media/stagefright/MediaCodecList.h>
+ #include <media/stagefright/MediaDefs.h>
+ #include <media/stagefright/MediaErrors.h>
+@@ -349,7 +350,16 @@ status_t StagefrightMetadataRetriever::getFrameInternal(
+             &matchingCodecs);
+ 
+     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
+-        const AString &componentName = matchingCodecs[i];
++        AString componentName = matchingCodecs[i];
++        const char* ffmpegComponentName =
++            FFMPEGSoftCodec::overrideComponentName(0, trackMeta, mime, false);
++        if (ffmpegComponentName != NULL) {
++            ALOGV("override compoent %s to %s for video frame extraction.",
++                    matchingCodecs[i].c_str(), ffmpegComponentName);
++            componentName.setTo(ffmpegComponentName);
++        } else {
++            componentName = matchingCodecs[i];
++        }
+         sp<VideoFrameDecoder> decoder = new VideoFrameDecoder(componentName, trackMeta, source);
+         if (decoder->init(timeUs, numFrames, option, colorFormat) == OK) {
+             if (outFrame != NULL) {
 diff --git a/media/libmediaplayerservice/nuplayer/NuPlayerDecoder.cpp b/media/libmediaplayerservice/nuplayer/NuPlayerDecoder.cpp
-index 2f0da2d783..a226b30b90 100644
+index bd2b884c8..5d95ec455 100644
 --- a/media/libmediaplayerservice/nuplayer/NuPlayerDecoder.cpp
 +++ b/media/libmediaplayerservice/nuplayer/NuPlayerDecoder.cpp
 @@ -40,6 +40,9 @@
@@ -71,7 +170,7 @@ index 2f0da2d783..a226b30b90 100644
      if (format->findInt32("secure", &secure) && secure != 0) {
          if (mCodec != NULL) {
 diff --git a/media/libstagefright/ACodec.cpp b/media/libstagefright/ACodec.cpp
-index 3d67c911a2..f293dab262 100644
+index eacaea8f7..8caeff5ba 100644
 --- a/media/libstagefright/ACodec.cpp
 +++ b/media/libstagefright/ACodec.cpp
 @@ -38,10 +38,13 @@
@@ -104,7 +203,7 @@ index 3d67c911a2..f293dab262 100644
  void ACodec::initiateSetup(const sp<AMessage> &msg) {
      msg->setWhat(kWhatSetup);
      msg->setTarget(this);
-@@ -2025,7 +2037,8 @@ status_t ACodec::configureCodec(
+@@ -2032,7 +2044,8 @@ status_t ACodec::configureCodec(
      if (mIsVideo || mIsImage) {
          // determine need for software renderer
          bool usingSwRenderer = false;
@@ -114,7 +213,7 @@ index 3d67c911a2..f293dab262 100644
              usingSwRenderer = true;
              haveNativeWindow = false;
              (void)setPortMode(kPortIndexOutput, IOMX::kPortModePresetByteBuffer);
-@@ -2105,7 +2118,7 @@ status_t ACodec::configureCodec(
+@@ -2112,7 +2125,7 @@ status_t ACodec::configureCodec(
              err = setupRawAudioFormat(
                      encoder ? kPortIndexInput : kPortIndexOutput,
                      sampleRate,
@@ -123,7 +222,7 @@ index 3d67c911a2..f293dab262 100644
          }
      } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
          int32_t numChannels, sampleRate;
-@@ -2223,14 +2236,15 @@ status_t ACodec::configureCodec(
+@@ -2230,14 +2243,15 @@ status_t ACodec::configureCodec(
          } else {
              err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels, pcmEncoding);
          }
@@ -141,7 +240,7 @@ index 3d67c911a2..f293dab262 100644
          }
      } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_EAC3)) {
          int32_t numChannels;
-@@ -2239,7 +2253,7 @@ status_t ACodec::configureCodec(
+@@ -2246,7 +2260,7 @@ status_t ACodec::configureCodec(
                  || !msg->findInt32("sample-rate", &sampleRate)) {
              err = INVALID_OPERATION;
          } else {
@@ -150,7 +249,7 @@ index 3d67c911a2..f293dab262 100644
          }
       } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC4)) {
          int32_t numChannels;
-@@ -2250,6 +2264,8 @@ status_t ACodec::configureCodec(
+@@ -2257,6 +2271,8 @@ status_t ACodec::configureCodec(
          } else {
              err = setupAC4Codec(encoder, numChannels, sampleRate);
          }
@@ -159,7 +258,7 @@ index 3d67c911a2..f293dab262 100644
      }
  
      if (err != OK) {
-@@ -2860,9 +2876,9 @@ status_t ACodec::setupAACCodec(
+@@ -2867,9 +2883,9 @@ status_t ACodec::setupAACCodec(
  }
  
  status_t ACodec::setupAC3Codec(
@@ -171,7 +270,7 @@ index 3d67c911a2..f293dab262 100644
  
      if (err != OK) {
          return err;
-@@ -2892,9 +2908,9 @@ status_t ACodec::setupAC3Codec(
+@@ -2899,9 +2915,9 @@ status_t ACodec::setupAC3Codec(
  }
  
  status_t ACodec::setupEAC3Codec(
@@ -183,7 +282,7 @@ index 3d67c911a2..f293dab262 100644
  
      if (err != OK) {
          return err;
-@@ -3378,6 +3394,9 @@ status_t ACodec::setupVideoDecoder(
+@@ -3386,6 +3402,9 @@ status_t ACodec::setupVideoDecoder(
      OMX_VIDEO_CODINGTYPE compressionFormat;
      status_t err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
  
@@ -193,23 +292,11 @@ index 3d67c911a2..f293dab262 100644
      if (err != OK) {
          return err;
      }
-@@ -3924,7 +3943,11 @@ status_t ACodec::setupVideoEncoder(
-     OMX_VIDEO_CODINGTYPE compressionFormat;
-     err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
- 
-+    err = FFMPEGSoftCodec::setVideoFormat(err,
-+                msg, mime, mOMX, mOMXNode, mIsEncoder, &compressionFormat,
-+                mComponentName.c_str());
-     if (err != OK) {
-+        ALOGE("Not a supported video mime type: %s", mime);
-         return err;
-     }
- 
-@@ -5104,6 +5127,14 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
+@@ -5135,6 +5154,14 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
  
                  default:
                  {
-+                    if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
++                    if (!mIsEncoder && !strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
 +                        err = FFMPEGSoftCodec::getVideoPortFormat(portIndex,
 +                                (int)videoDef->eCompressionFormat, notify, mOMX, mOMXNode);
 +                        if (err == OK) {
@@ -220,11 +307,11 @@ index 3d67c911a2..f293dab262 100644
                      if (mIsEncoder ^ (portIndex == kPortIndexOutput)) {
                          // should be CodingUnused
                          ALOGE("Raw port video compression format is %s(%d)",
-@@ -5233,6 +5264,13 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
+@@ -5264,6 +5291,13 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
  
                  case OMX_AUDIO_CodingFLAC:
                  {
-+                    if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
++                    if (!mIsEncoder && !strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
 +                        err = FFMPEGSoftCodec::getAudioPortFormat(portIndex,
 +                                (int)audioDef->eEncoding, notify, mOMX, mOMXNode);
 +                        if (err != OK) {
@@ -234,7 +321,7 @@ index 3d67c911a2..f293dab262 100644
                      OMX_AUDIO_PARAM_FLACTYPE params;
                      InitOMXParams(&params);
                      params.nPortIndex = portIndex;
-@@ -5246,6 +5284,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
+@@ -5277,6 +5311,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                      notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
                      notify->setInt32("channel-count", params.nChannels);
                      notify->setInt32("sample-rate", params.nSampleRate);
@@ -242,11 +329,11 @@ index 3d67c911a2..f293dab262 100644
                      break;
                  }
  
-@@ -5407,6 +5446,14 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
+@@ -5438,6 +5473,14 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                  }
  
                  default:
-+                    if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
++                    if (!mIsEncoder && !strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
 +                        err = FFMPEGSoftCodec::getAudioPortFormat(portIndex,
 +                                (int)audioDef->eEncoding, notify, mOMX, mOMXNode);
 +                    }
@@ -257,7 +344,7 @@ index 3d67c911a2..f293dab262 100644
                      ALOGE("Unsupported audio coding: %s(%d)\n",
                              asString(audioDef->eEncoding), audioDef->eEncoding);
                      return BAD_TYPE;
-@@ -6828,8 +6875,79 @@ bool ACodec::LoadedState::onConfigureComponent(
+@@ -6859,8 +6902,79 @@ bool ACodec::LoadedState::onConfigureComponent(
          ALOGE("[%s] configureCodec returning error %d",
                mCodec->mComponentName.c_str(), err);
  
@@ -340,10 +427,10 @@ index 3d67c911a2..f293dab262 100644
  
      mCodec->mCallback->onComponentConfigured(mCodec->mInputFormat, mCodec->mOutputFormat);
 diff --git a/media/libstagefright/Android.bp b/media/libstagefright/Android.bp
-index 917080511f..f6742d401d 100644
+index 18dacb88c..6f01e4ef5 100644
 --- a/media/libstagefright/Android.bp
 +++ b/media/libstagefright/Android.bp
-@@ -81,6 +81,7 @@ cc_library_static {
+@@ -87,6 +87,7 @@ cc_library_static {
      name: "libstagefright_mpeg2extractor",
  
      srcs: [
@@ -351,7 +438,7 @@ index 917080511f..f6742d401d 100644
          "Utils.cpp",
          "MediaSource.cpp",
          "HevcUtils.cpp",
-@@ -90,6 +91,9 @@ cc_library_static {
+@@ -96,6 +97,9 @@ cc_library_static {
          "liblog",
          "libmedia",
          "libmedia_omx",
@@ -361,7 +448,7 @@ index 917080511f..f6742d401d 100644
      ],
  
      export_include_dirs: [
-@@ -103,6 +107,11 @@ cc_library_static {
+@@ -113,6 +117,11 @@ cc_library_static {
          "-Wall",
      ],
  
@@ -373,14 +460,14 @@ index 917080511f..f6742d401d 100644
      sanitize: {
          cfi: true,
          misc_undefined: [
-@@ -133,6 +142,7 @@ cc_library {
-         "DataSourceFactory.cpp",
-         "DataURISource.cpp",
-         "ClearFileSource.cpp",
+@@ -138,6 +147,7 @@ cc_library {
+         "CameraSource.cpp",
+         "CameraSourceTimeLapse.cpp",
+         "DataConverter.cpp",
 +        "FFMPEGSoftCodec.cpp",
-         "FileSource.cpp",
          "FrameDecoder.cpp",
-         "HTTPBase.cpp",
+         "HevcUtils.cpp",
+         "InterfaceUtils.cpp",
 @@ -225,6 +235,11 @@ cc_library {
          "media_ndk_headers",
      ],
@@ -393,77 +480,12 @@ index 917080511f..f6742d401d 100644
      export_shared_lib_headers: [
          "libgui",
          "libhidlmemory",
-@@ -268,6 +283,7 @@ cc_library_static {
-         "ClearFileSource.cpp",
-         "DataURISource.cpp",
-         "DataSourceBase.cpp",
-+        "FFMPEGSoftCodec.cpp",
-         "HTTPBase.cpp",
-         "HevcUtils.cpp",
-         "MediaClock.cpp",
-@@ -286,8 +302,17 @@ cc_library_static {
-         "libutils",
-         "libstagefright_foundation",
-         "libandroid",
-+        "android.hidl.allocator@1.0",
-+        "android.hidl.memory@1.0",
-+        "android.hardware.media.omx@1.0",
-     ],
- 
-+    include_dirs: [
-+        // FFMPEG plugin
-+        "external/stagefright-plugins/include"
-+    ],
-+
-+
-     static_libs: [
-         "libmedia_player2_util",
-         "libmedia2_jni_core",
-diff --git a/media/libstagefright/ClearFileSource.cpp b/media/libstagefright/ClearFileSource.cpp
-index e3a2cb721e..dec2c5b727 100644
---- a/media/libstagefright/ClearFileSource.cpp
-+++ b/media/libstagefright/ClearFileSource.cpp
-@@ -31,6 +31,7 @@ namespace android {
- 
- ClearFileSource::ClearFileSource(const char *filename)
-     : mFd(-1),
-+      mUri(filename),
-       mOffset(0),
-       mLength(-1),
-       mName("<null>") {
-@@ -87,6 +88,7 @@ ClearFileSource::ClearFileSource(int fd, int64_t offset, int64_t length)
-             (long long) mOffset,
-             (long long) mLength);
- 
-+    fetchUriFromFd(fd);
- }
- 
- ClearFileSource::~ClearFileSource() {
-@@ -140,4 +142,18 @@ status_t ClearFileSource::getSize(off64_t *size) {
-     return OK;
- }
- 
-+void ClearFileSource::fetchUriFromFd(int fd) {
-+    ssize_t len = 0;
-+    char path[PATH_MAX] = {0};
-+    char link[PATH_MAX] = {0};
-+
-+    mUri.clear();
-+
-+    snprintf(path, PATH_MAX, "/proc/%d/fd/%d", getpid(), fd);
-+    if ((len = readlink(path, link, sizeof(link)-1)) != -1) {
-+        link[len] = '\0';
-+        mUri.setTo(link);
-+    }
-+}
-+
- }  // namespace android
 diff --git a/media/libstagefright/FFMPEGSoftCodec.cpp b/media/libstagefright/FFMPEGSoftCodec.cpp
 new file mode 100644
-index 0000000000..e4e587ed0d
+index 000000000..2a1689abc
 --- /dev/null
 +++ b/media/libstagefright/FFMPEGSoftCodec.cpp
-@@ -0,0 +1,1315 @@
+@@ -0,0 +1,1308 @@
 +/*
 + * Copyright (C) 2014 The CyanogenMod Project
 + *
@@ -494,6 +516,7 @@ index 0000000000..e4e587ed0d
 +#include <media/stagefright/foundation/ABitReader.h>
 +
 +#include <media/stagefright/FFMPEGSoftCodec.h>
++#include <media/stagefright/omx/OMXUtils.h>
 +
 +#include <media/stagefright/ACodec.h>
 +#include <media/stagefright/MediaCodecList.h>
@@ -546,6 +569,7 @@ index 0000000000..e4e587ed0d
 +   {kKeyWMAVersion           , "wma-version"            , INT32},  // int32_t
 +   {kKeyWMVVersion           , "wmv-version"            , INT32},
 +   {kKeyDivXVersion          , "divx-version"           , INT32},
++   {kKeyThumbnailTime        , "thumbnail-time"         , INT64},
 +};
 +
 +const char* FFMPEGSoftCodec::getMsgKey(int key) {
@@ -653,15 +677,6 @@ index 0000000000..e4e587ed0d
 +    }
 +}
 +
-+
-+template<class T>
-+static void InitOMXParams(T *params) {
-+    params->nSize = sizeof(T);
-+    params->nVersion.s.nVersionMajor = 1;
-+    params->nVersion.s.nVersionMinor = 0;
-+    params->nVersion.s.nRevision = 0;
-+    params->nVersion.s.nStep = 0;
-+}
 +
 +const char* FFMPEGSoftCodec::overrideComponentName(
 +        uint32_t /*quirks*/, const sp<MetaData> &meta, const char *mime, bool isEncoder) {
@@ -1780,10 +1795,10 @@ index 0000000000..e4e587ed0d
 +
 +}
 diff --git a/media/libstagefright/MediaCodec.cpp b/media/libstagefright/MediaCodec.cpp
-index f579e9de6b..daabac31a7 100644
+index 77eace9e5..30479c776 100644
 --- a/media/libstagefright/MediaCodec.cpp
 +++ b/media/libstagefright/MediaCodec.cpp
-@@ -1955,7 +1955,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
+@@ -2048,7 +2048,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                      }
  
                      const char *owner = mCodecInfo->getOwnerName();
@@ -1793,10 +1808,10 @@ index f579e9de6b..daabac31a7 100644
                          mFlags |= kFlagUsesSoftwareRenderer;
                      } else {
 diff --git a/media/libstagefright/MediaExtractorFactory.cpp b/media/libstagefright/MediaExtractorFactory.cpp
-index 4c8be1f193..61b3525cf8 100644
+index 9e8547556..9e973c91a 100644
 --- a/media/libstagefright/MediaExtractorFactory.cpp
 +++ b/media/libstagefright/MediaExtractorFactory.cpp
-@@ -301,6 +301,12 @@ void MediaExtractorFactory::LoadExtractors() {
+@@ -298,6 +298,12 @@ void MediaExtractorFactory::LoadExtractors() {
  #endif
              "/extractors", NULL, *newList);
  
@@ -1809,38 +1824,8 @@ index 4c8be1f193..61b3525cf8 100644
      newList->sort(compareFunc);
      gPlugins = newList;
  
-diff --git a/media/libstagefright/StagefrightMetadataRetriever.cpp b/media/libstagefright/StagefrightMetadataRetriever.cpp
-index fa3d3728fc..fbc14534b4 100644
---- a/media/libstagefright/StagefrightMetadataRetriever.cpp
-+++ b/media/libstagefright/StagefrightMetadataRetriever.cpp
-@@ -29,6 +29,7 @@
- #include <media/stagefright/foundation/ADebug.h>
- #include <media/stagefright/foundation/AMessage.h>
- #include <media/stagefright/DataSourceFactory.h>
-+#include <media/stagefright/FFMPEGSoftCodec.h>
- #include <media/stagefright/FileSource.h>
- #include <media/stagefright/MediaCodecList.h>
- #include <media/stagefright/MediaDefs.h>
-@@ -348,7 +349,16 @@ status_t StagefrightMetadataRetriever::getFrameInternal(
-             &matchingCodecs);
- 
-     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
--        const AString &componentName = matchingCodecs[i];
-+        AString componentName = matchingCodecs[i];
-+        const char* ffmpegComponentName =
-+            FFMPEGSoftCodec::overrideComponentName(0, trackMeta, mime, false);
-+        if (ffmpegComponentName != NULL) {
-+            ALOGV("override compoent %s to %s for video frame extraction.",
-+                    matchingCodecs[i].c_str(), ffmpegComponentName);
-+            componentName.setTo(ffmpegComponentName);
-+        } else {
-+            componentName = matchingCodecs[i];
-+        }
-         sp<VideoFrameDecoder> decoder = new VideoFrameDecoder(componentName, trackMeta, source);
-         if (decoder->init(timeUs, numFrames, option, colorFormat) == OK) {
-             if (outFrame != NULL) {
 diff --git a/media/libstagefright/Utils.cpp b/media/libstagefright/Utils.cpp
-index 135151f122..e198f04b21 100644
+index 02e8ab5ea..0fe81c1d8 100644
 --- a/media/libstagefright/Utils.cpp
 +++ b/media/libstagefright/Utils.cpp
 @@ -47,6 +47,8 @@
@@ -1861,9 +1846,9 @@ index 135151f122..e198f04b21 100644
      }
  };
  
-@@ -690,6 +694,21 @@ static std::vector<std::pair<const char *, uint32_t>> int32Mappings {
-         { "thumbnail-width", kKeyThumbnailWidth },
+@@ -691,6 +695,21 @@ static std::vector<std::pair<const char *, uint32_t>> int32Mappings {
          { "thumbnail-height", kKeyThumbnailHeight },
+         { "track-id", kKeyTrackID },
          { "valid-samples", kKeyValidSamples },
 +        // FFMPEG
 +        { "bits-per-raw-sample", kKeyBitsPerRawSample },
@@ -1883,7 +1868,7 @@ index 135151f122..e198f04b21 100644
      }
  };
  
-@@ -706,6 +725,8 @@ static std::vector<std::pair<const char *, uint32_t>> bufferMappings {
+@@ -707,6 +726,8 @@ static std::vector<std::pair<const char *, uint32_t>> bufferMappings {
          { "sei", kKeySEI },
          { "text-format-data", kKeyTextFormatData },
          { "thumbnail-csd-hevc", kKeyThumbnailHVCC },
@@ -1892,7 +1877,7 @@ index 135151f122..e198f04b21 100644
      }
  };
  
-@@ -1411,8 +1432,15 @@ status_t convertMetaDataToMessage(
+@@ -1406,8 +1427,15 @@ status_t convertMetaDataToMessage(
          msg->setBuffer("csd-0", buffer);
      }
  
@@ -1908,7 +1893,7 @@ index 135151f122..e198f04b21 100644
      return OK;
  }
  
-@@ -1889,8 +1917,10 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
+@@ -1884,8 +1912,10 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
  
      // XXX TODO add whatever other keys there are
  
@@ -1921,7 +1906,7 @@ index 135151f122..e198f04b21 100644
  #endif
  }
 diff --git a/media/libstagefright/foundation/MediaDefs.cpp b/media/libstagefright/foundation/MediaDefs.cpp
-index a08fed19a4..4883ad0206 100644
+index a08fed19a..4883ad020 100644
 --- a/media/libstagefright/foundation/MediaDefs.cpp
 +++ b/media/libstagefright/foundation/MediaDefs.cpp
 @@ -80,4 +80,37 @@ const char *MEDIA_MIMETYPE_TEXT_CEA_608 = "text/cea-608";
@@ -1963,7 +1948,7 @@ index a08fed19a4..4883ad0206 100644
 +
  }  // namespace android
 diff --git a/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h b/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
-index 1f9e636b8d..29dea04eac 100644
+index 1f9e636b8..29dea04ea 100644
 --- a/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
 +++ b/media/libstagefright/foundation/include/media/stagefright/foundation/MediaDefs.h
 @@ -18,6 +18,8 @@
@@ -2061,7 +2046,7 @@ index 1f9e636b8d..29dea04eac 100644
  
  #endif  // MEDIA_DEFS_H_
 diff --git a/media/libstagefright/include/media/stagefright/ACodec.h b/media/libstagefright/include/media/stagefright/ACodec.h
-index 784fd36e64..5429204a81 100644
+index 784fd36e6..5429204a8 100644
 --- a/media/libstagefright/include/media/stagefright/ACodec.h
 +++ b/media/libstagefright/include/media/stagefright/ACodec.h
 @@ -34,6 +34,8 @@
@@ -2096,39 +2081,9 @@ index 784fd36e64..5429204a81 100644
  
      status_t setupAC4Codec(bool encoder, int32_t numChannels, int32_t sampleRate);
  
-diff --git a/media/libstagefright/include/media/stagefright/ClearFileSource.h b/media/libstagefright/include/media/stagefright/ClearFileSource.h
-index be83748d74..0492a0d7dd 100644
---- a/media/libstagefright/include/media/stagefright/ClearFileSource.h
-+++ b/media/libstagefright/include/media/stagefright/ClearFileSource.h
-@@ -46,11 +46,16 @@ public:
-         return mName;
-     }
- 
-+    virtual String8 getUri() {
-+        return mUri;
-+    }
-+
- protected:
-     virtual ~ClearFileSource();
-     virtual ssize_t readAt_l(off64_t offset, void *data, size_t size);
- 
-     int mFd;
-+    String8 mUri;
-     int64_t mOffset;
-     int64_t mLength;
-     Mutex mLock;
-@@ -60,6 +65,8 @@ private:
- 
-     ClearFileSource(const ClearFileSource &);
-     ClearFileSource &operator=(const ClearFileSource &);
-+
-+    void fetchUriFromFd(int fd);
- };
- 
- }  // namespace android
 diff --git a/media/libstagefright/include/media/stagefright/FFMPEGSoftCodec.h b/media/libstagefright/include/media/stagefright/FFMPEGSoftCodec.h
 new file mode 100644
-index 0000000000..9a51908b22
+index 000000000..9a51908b2
 --- /dev/null
 +++ b/media/libstagefright/include/media/stagefright/FFMPEGSoftCodec.h
 @@ -0,0 +1,138 @@
@@ -2271,7 +2226,7 @@ index 0000000000..9a51908b22
 +}
 +#endif
 diff --git a/media/libstagefright/include/media/stagefright/MetaDataBase.h b/media/libstagefright/include/media/stagefright/MetaDataBase.h
-index 8dc2dd5cd7..aa544f4a7e 100644
+index 8dc2dd5cd..aa544f4a7 100644
 --- a/media/libstagefright/include/media/stagefright/MetaDataBase.h
 +++ b/media/libstagefright/include/media/stagefright/MetaDataBase.h
 @@ -55,6 +55,11 @@ enum {
@@ -2353,7 +2308,7 @@ index 8dc2dd5cd7..aa544f4a7e 100644
      kCryptoModeUnencrypted = 0,
      kCryptoModeAesCtr      = 1,
 diff --git a/media/libstagefright/omx/OMXUtils.cpp b/media/libstagefright/omx/OMXUtils.cpp
-index 1b8493acc6..2887bdb710 100644
+index 1b8493acc..2887bdb71 100644
 --- a/media/libstagefright/omx/OMXUtils.cpp
 +++ b/media/libstagefright/omx/OMXUtils.cpp
 @@ -172,6 +172,50 @@ const char *GetComponentRole(bool isEncoder, const char *mime) {
@@ -2408,5 +2363,5 @@ index 1b8493acc6..2887bdb710 100644
  
      static const size_t kNumMimeToRole =
 -- 
-2.21.0
+2.25.1
 

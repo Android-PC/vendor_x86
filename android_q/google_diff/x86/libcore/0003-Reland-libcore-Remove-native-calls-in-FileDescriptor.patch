@@ -1,0 +1,247 @@
+From 19e0c5087f60e09530e7c29de83aba7bc71393d1 Mon Sep 17 00:00:00 2001
+From: Orion Hodson <oth@google.com>
+Date: Tue, 10 Mar 2020 14:02:48 +0000
+Subject: [PATCH 3/5] Reland "libcore: Remove native calls in FileDescriptor
+ <clinit>"
+
+This reverts commit Ie9fa5a25d5352f214a16e10d5bbbe45da9f3c486.
+
+Original commit message:
+
+Moves cloning of FileDescriptor in, out, and err descriptors
+into a ZygoteHook. This avoids the need to run JNI methods
+in FileDescriptor.<clinit> and enables native Core Platform
+API checking of FileDescriptor descriptor and ownerId fields.
+
+Changes in reland:
+
+Force UnixChannelFactory to fail initialization during AOT
+compilation. UnixChannelFactory is on the preloaded-classes-blacklist
+and the changes in the original CL unintentionally allowed
+it to be initialized. It used to be that FileDescriptor and
+UnixChannelFactory initialization failed in the same transaction
+due to the FileDescriptor clinit method making native calls (dup(s)).
+
+Bug: 144502743
+Bug: 150680645
+Test: art/test/run-test --host 001-HelloWorld
+Test: art/tools/run-libcore-tests.sh --mode=host --variant=X64
+Test: atest -s <serial> -c \
+              CtsLibcoreTestCases:libcore.java.io.FileDescriptorTest
+Test: atest PreloadCheck
+Change-Id: I81e1af1d13ec81b3e51ce1d2f3c202f807d9f9bb
+---
+ .../main/java/dalvik/system/ZygoteHooks.java  |  6 +++
+ .../main/java/dalvik/system/VMRuntime.java    | 11 ++++++
+ .../libcore/java/io/FileDescriptorTest.java   | 32 ++++++++++++++++
+ .../src/main/java/java/io/FileDescriptor.java | 38 +++++++++++--------
+ .../java/sun/nio/fs/UnixChannelFactory.java   |  7 ++++
+ 5 files changed, 79 insertions(+), 15 deletions(-)
+
+diff --git a/dalvik/src/main/java/dalvik/system/ZygoteHooks.java b/dalvik/src/main/java/dalvik/system/ZygoteHooks.java
+index 0339b4d0d4..475acd9db8 100644
+--- a/dalvik/src/main/java/dalvik/system/ZygoteHooks.java
++++ b/dalvik/src/main/java/dalvik/system/ZygoteHooks.java
+@@ -21,6 +21,7 @@ import android.icu.text.DecimalFormatSymbols;
+ import android.icu.util.ULocale;
+ 
+ import java.io.File;
++import java.io.FileDescriptor;
+ 
+ /**
+  * Provides hooks for the zygote to call back into the runtime to perform
+@@ -67,6 +68,11 @@ public final class ZygoteHooks {
+     public static void onEndPreload() {
+         // All cache references created by ICU from this point will be soft.
+         CacheValue.setStrength(CacheValue.Strength.SOFT);
++
++        // Clone standard descriptors as originals closed / rebound during zygote post fork.
++        FileDescriptor.in.cloneForFork();
++        FileDescriptor.out.cloneForFork();
++        FileDescriptor.err.cloneForFork();
+     }
+ 
+     /**
+diff --git a/libart/src/main/java/dalvik/system/VMRuntime.java b/libart/src/main/java/dalvik/system/VMRuntime.java
+index 863f85d4e6..7be8c23f0b 100644
+--- a/libart/src/main/java/dalvik/system/VMRuntime.java
++++ b/libart/src/main/java/dalvik/system/VMRuntime.java
+@@ -28,6 +28,7 @@ import java.util.Map;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.function.Consumer;
+ 
++import dalvik.annotation.optimization.CriticalNative;
+ import dalvik.annotation.optimization.FastNative;
+ 
+ /**
+@@ -658,6 +659,16 @@ public final class VMRuntime {
+         return is64BitInstructionSet(getInstructionSet(abi));
+     }
+ 
++    /**
++     * Prevent initialization of the caller's class if they are calling
++     * from their clinit method. This works because calling a JNI method
++     * from clinit causes the transactional runtime to abort the current
++     * transaction.
++     * @hide
++     */
++    @CriticalNative
++    public static native void doNotInitializeInAot();
++
+     /**
+      * Return false if the boot class path for the given instruction
+      * set mapped from disk storage, versus being interpretted from
+diff --git a/luni/src/test/java/libcore/java/io/FileDescriptorTest.java b/luni/src/test/java/libcore/java/io/FileDescriptorTest.java
+index 3e82690bf3..390cfd650b 100644
+--- a/luni/src/test/java/libcore/java/io/FileDescriptorTest.java
++++ b/luni/src/test/java/libcore/java/io/FileDescriptorTest.java
+@@ -16,7 +16,10 @@
+ 
+ package libcore.java.io;
+ 
++import android.system.Os;
++
+ import java.io.File;
++import java.io.FileDescriptor;
+ import java.io.FileInputStream;
+ import java.io.FileNotFoundException;
+ import java.io.IOException;
+@@ -24,6 +27,8 @@ import java.io.RandomAccessFile;
+ import java.net.ServerSocket;
+ import junit.framework.TestCase;
+ 
++import static org.junit.Assert.assertNotEquals;
++
+ public class FileDescriptorTest extends TestCase {
+   public void testReadOnlyFileDescriptorSync() throws Exception {
+     File f= File.createTempFile("FileDescriptorTest", "tmp");
+@@ -40,4 +45,31 @@ public class FileDescriptorTest extends TestCase {
+     assertTrue(s.getImpl().getFD$().isSocket$());
+     s.close();
+   }
++
++  public void testStaticFileDescriptors() {
++    assertTrue(FileDescriptor.in.valid());
++    assertTrue(FileDescriptor.out.valid());
++    assertTrue(FileDescriptor.err.valid());
++  }
++
++  public void testFileDescriptorCloneForFork() throws Exception {
++    FileDescriptor [] sources = { FileDescriptor.in, FileDescriptor.out, FileDescriptor.err };
++    for (FileDescriptor source : sources) {
++      // Create a new file descriptor and set it's native descriptor to each of the well
++      // known descriptors in FileDescriptor.
++      FileDescriptor target = new FileDescriptor();
++      target.setInt$(source.getInt$());
++      assertEquals(target.getInt$(), source.getInt$());
++
++      // Clone file descriptor, this creates a native file descriptor.
++      target.cloneForFork();
++      assertTrue(source.valid());
++      assertTrue(target.valid());
++      assertNotEquals(target.getInt$(), source.getInt$());
++
++      // Clean-up native resource we allocated in cloneForFork. Os.close() may throw
++      // an ErrnoException.
++      Os.close(target);
++    }
++  }
+ }
+diff --git a/ojluni/src/main/java/java/io/FileDescriptor.java b/ojluni/src/main/java/java/io/FileDescriptor.java
+index ed3ebfe075..98db443816 100644
+--- a/ojluni/src/main/java/java/io/FileDescriptor.java
++++ b/ojluni/src/main/java/java/io/FileDescriptor.java
+@@ -82,8 +82,7 @@ public final class FileDescriptor {
+      *
+      * @see     java.lang.System#in
+      */
+-    // Android-changed: Duplicates of FDs needed for RuntimeInit#redirectLogStreams
+-    public static final FileDescriptor in = dupFd(0);
++    public static final FileDescriptor in = new FileDescriptor(0);
+ 
+     /**
+      * A handle to the standard output stream. Usually, this file
+@@ -91,8 +90,7 @@ public final class FileDescriptor {
+      * known as <code>System.out</code>.
+      * @see     java.lang.System#out
+      */
+-    // Android-changed: Duplicates of FDs needed for RuntimeInit#redirectLogStreams
+-    public static final FileDescriptor out = dupFd(1);
++    public static final FileDescriptor out = new FileDescriptor(1);
+ 
+     /**
+      * A handle to the standard error stream. Usually, this file
+@@ -101,8 +99,7 @@ public final class FileDescriptor {
+      *
+      * @see     java.lang.System#err
+      */
+-    // Android-changed: Duplicates of FDs needed for RuntimeInit#redirectLogStreams
+-    public static final FileDescriptor err = dupFd(2);
++    public static final FileDescriptor err = new FileDescriptor(2);
+ 
+     /**
+      * Tests if this file descriptor object is valid.
+@@ -169,6 +166,26 @@ public final class FileDescriptor {
+         this.descriptor = fd;
+     }
+ 
++    // BEGIN Android-added: Method to clone standard file descriptors.
++    // Required as a consequence of RuntimeInit#redirectLogStreams. Cloning is used in
++    // ZygoteHooks.onEndPreload().
++    /**
++     * Clones the current native file descriptor and uses this for this FileDescriptor instance.
++     *
++     * This method does not close the current native file descriptor.
++     *
++     * @hide internal use only
++     */
++    public void cloneForFork() {
++        try {
++            int newDescriptor = Os.fcntlInt(this, F_DUPFD_CLOEXEC, 0);
++            this.descriptor = newDescriptor;
++        } catch (ErrnoException e) {
++            throw new RuntimeException(e);
++        }
++    }
++    // END Android-added: Method to clone standard file descriptors.
++
+     // BEGIN Android-added: Methods to enable ownership enforcement of Unix file descriptors.
+     /**
+      * Returns the owner ID of this FileDescriptor. It's highly unlikely you should be calling this.
+@@ -214,15 +231,6 @@ public final class FileDescriptor {
+         return isSocket(descriptor);
+     }
+ 
+-    // Android-added: Needed for RuntimeInit#redirectLogStreams.
+-    private static FileDescriptor dupFd(int fd) {
+-        try {
+-            return new FileDescriptor(Os.fcntlInt(new FileDescriptor(fd), F_DUPFD_CLOEXEC, 0));
+-        } catch (ErrnoException e) {
+-            throw new RuntimeException(e);
+-        }
+-    }
+-
+     private static native boolean isSocket(int descriptor);
+     // Set up JavaIOFileDescriptorAccess in SharedSecrets
+     static {
+diff --git a/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java b/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java
+index c6f074e594..9491fd9aae 100644
+--- a/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java
++++ b/ojluni/src/main/java/sun/nio/fs/UnixChannelFactory.java
+@@ -47,6 +47,13 @@ class UnixChannelFactory {
+     private static final JavaIOFileDescriptorAccess fdAccess =
+         SharedSecrets.getJavaIOFileDescriptorAccess();
+ 
++    static {
++        // b/151107960. This class is on the preloaded-classes-blacklist.
++        // It would be instantiated during AOT now without this magic
++        // function call and consequently fail 'atest PreloadCheck'.
++        dalvik.system.VMRuntime.doNotInitializeInAot();
++    }
++
+     protected UnixChannelFactory() {
+     }
+ 
+-- 
+2.25.1
+

@@ -1,7 +1,7 @@
-From b6b9ae7d42256f4ba2b5ad980dd54d46a5886e8e Mon Sep 17 00:00:00 2001
+From ccea19879fd1acac81c0287ee2c70094d3ce4dcc Mon Sep 17 00:00:00 2001
 From: Billy <xiaobing.feng@windriver.com>
 Date: Thu, 20 Dec 2012 11:02:55 +0800
-Subject: [PATCH 03/10] FLACExtractor: Add more sample rates support
+Subject: [PATCH 03/14] FLACExtractor: Add more sample rates support
 
 In FLACExtractor.cpp, it has function to check file's sample rate.
 If the input sample rate is not in its list, it will return "unsupported
@@ -17,7 +17,7 @@ Signed-off-by: Matt Gumbel <matthew.k.gumbel@intel.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/media/extractors/flac/FLACExtractor.cpp b/media/extractors/flac/FLACExtractor.cpp
-index 5329bd112f..8ea016db98 100644
+index 5329bd112..8ea016db9 100644
 --- a/media/extractors/flac/FLACExtractor.cpp
 +++ b/media/extractors/flac/FLACExtractor.cpp
 @@ -533,7 +533,7 @@ status_t FLACParser::init()
@@ -30,5 +30,5 @@ index 5329bd112f..8ea016db98 100644
              return NO_INIT;
          }
 -- 
-2.21.0
+2.25.1
 

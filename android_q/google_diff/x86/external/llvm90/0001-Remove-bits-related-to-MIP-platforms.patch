@@ -1,0 +1,29 @@
+From 734dc8898ea6dbcf8cbb73a012b71c5a211d0187 Mon Sep 17 00:00:00 2001
+From: Michael Goffioul <michael.goffioul@lincor.com>
+Date: Wed, 1 Apr 2020 17:52:30 -0400
+Subject: [PATCH] Remove bits related to MIP platforms
+
+---
+ Android.bp | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/Android.bp b/Android.bp
+index 4a9c2ded504..cf394b1bbf4 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -330,12 +330,6 @@ cc_library_shared {
+                 llvm_arm_static_libraries +
+                 llvm_aarch64_static_libraries,
+         },
+-        android_mips: {
+-            whole_static_libs: llvm_mips_static_libraries,
+-        },
+-        android_mips64: {
+-            whole_static_libs: llvm_mips_static_libraries,
+-        },
+         android_arm64: {
+             whole_static_libs: llvm_aarch64_static_libraries +
+                 llvm_arm_static_libraries,
+-- 
+2.25.1
+

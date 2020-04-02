@@ -1,7 +1,7 @@
-From f6f39cb4e8a90e99cdf2359b74f44da7e60300e8 Mon Sep 17 00:00:00 2001
+From 363268bb1ec23cdd8f5a8ffe727e47b2fcd8fa95 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Thu, 1 Jun 2017 12:00:10 +0800
-Subject: [PATCH 07/10] media: enable dithering for RGB565 conversion
+Subject: [PATCH 07/14] media: enable dithering for RGB565 conversion
 
 This seems to improve video playback quality.
 
@@ -11,7 +11,7 @@ Inspired by a patch from WuZhen.
  1 file changed, 2 insertions(+), 3 deletions(-)
 
 diff --git a/media/libstagefright/colorconversion/ColorConverter.cpp b/media/libstagefright/colorconversion/ColorConverter.cpp
-index d685321028..d93938c398 100644
+index d68532102..d93938c39 100644
 --- a/media/libstagefright/colorconversion/ColorConverter.cpp
 +++ b/media/libstagefright/colorconversion/ColorConverter.cpp
 @@ -348,9 +348,8 @@ status_t ColorConverter::convertYUV420PlanarUseLibYUV(
@@ -27,5 +27,5 @@ index d685321028..d93938c398 100644
      }
  
 -- 
-2.21.0
+2.25.1
 

@@ -1,7 +1,7 @@
-From 1fe6c7efb6fc36ea357fa3e5ef0266d5650db532 Mon Sep 17 00:00:00 2001
+From 038f1eda4833e971b87b28523a142519975a48e0 Mon Sep 17 00:00:00 2001
 From: juntingwang <Junting.Wang@windriver.com>
 Date: Wed, 24 Apr 2013 14:06:08 +0800
-Subject: [PATCH 04/20] Make "windows" key to act as "home" key
+Subject: [PATCH 04/23] Make "windows" key to act as "home" key
 
 Issue: AXIA-1893
 Change-Id: I7b2b19f7e34ec8a1867e8e6ce522e65133e5267f
@@ -26,5 +26,5 @@ index 8699cb491df..7cf0a3e61a4 100644
  key 128   MEDIA_STOP
  # key 129 "KEY_AGAIN"
 -- 
-2.21.0
+2.25.1
 

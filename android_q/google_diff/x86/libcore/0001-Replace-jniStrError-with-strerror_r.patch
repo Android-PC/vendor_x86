@@ -1,0 +1,77 @@
+From 8834747667ef9fec014cc690167dd9e11177d7b3 Mon Sep 17 00:00:00 2001
+From: Orion Hodson <oth@google.com>
+Date: Tue, 17 Mar 2020 08:46:03 +0000
+Subject: [PATCH 1/5] Replace jniStrError with strerror_r
+
+This was the only use of jniStrError and it is trivially replaced
+with strerror_r.
+
+Also remove two unused jniException methods.
+
+Bug: 151443957
+Test: m
+Change-Id: I75815d84c2bfd0fae7ba7a6ee26f91f02f9f0e58
+---
+ luni/src/main/native/JniException.cpp     | 9 ---------
+ luni/src/main/native/JniException.h       | 3 ---
+ luni/src/main/native/libcore_io_Linux.cpp | 3 ++-
+ 3 files changed, 2 insertions(+), 13 deletions(-)
+
+diff --git a/luni/src/main/native/JniException.cpp b/luni/src/main/native/JniException.cpp
+index 164281df6c..01346ef654 100644
+--- a/luni/src/main/native/JniException.cpp
++++ b/luni/src/main/native/JniException.cpp
+@@ -19,15 +19,6 @@
+ #include "JniException.h"
+ #include <nativehelper/JNIHelp.h>
+ 
+-void jniThrowExceptionWithErrno(JNIEnv* env, const char* exceptionClassName, int error) {
+-    char buf[BUFSIZ];
+-    jniThrowException(env, exceptionClassName, jniStrError(error, buf, sizeof(buf)));
+-}
+-
+ void jniThrowOutOfMemoryError(JNIEnv* env, const char* message) {
+     jniThrowException(env, "java/lang/OutOfMemoryError", message);
+ }
+-
+-void jniThrowSocketException(JNIEnv* env, int error) {
+-    jniThrowExceptionWithErrno(env, "java/net/SocketException", error);
+-}
+diff --git a/luni/src/main/native/JniException.h b/luni/src/main/native/JniException.h
+index 2d4a0979b4..cff68b8a1b 100644
+--- a/luni/src/main/native/JniException.h
++++ b/luni/src/main/native/JniException.h
+@@ -19,9 +19,6 @@
+ 
+ #include "jni.h"
+ 
+-void jniThrowExceptionWithErrno(JNIEnv* env, const char* exceptionClassName, int error);
+-
+ void jniThrowOutOfMemoryError(JNIEnv* env, const char* message);
+-void jniThrowSocketException(JNIEnv* env, int error);
+ 
+ #endif  // JNI_EXCEPTION_H_included
+diff --git a/luni/src/main/native/libcore_io_Linux.cpp b/luni/src/main/native/libcore_io_Linux.cpp
+index 9e44e63fe4..a99b862717 100644
+--- a/luni/src/main/native/libcore_io_Linux.cpp
++++ b/luni/src/main/native/libcore_io_Linux.cpp
+@@ -29,6 +29,7 @@
+ #include <pwd.h>
+ #include <signal.h>
+ #include <stdlib.h>
++#include <string.h>
+ #include <sys/capability.h>
+ #include <sys/ioctl.h>
+ #include <sys/mman.h>
+@@ -2470,7 +2471,7 @@ static jobject Linux_statvfs(JNIEnv* env, jobject, jstring javaPath) {
+ 
+ static jstring Linux_strerror(JNIEnv* env, jobject, jint errnum) {
+     char buffer[BUFSIZ];
+-    const char* message = jniStrError(errnum, buffer, sizeof(buffer));
++    const char* message = strerror_r(errnum, buffer, sizeof(buffer));
+     return env->NewStringUTF(message);
+ }
+ 
+-- 
+2.25.1
+

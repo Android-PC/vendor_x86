@@ -1,7 +1,7 @@
-From 1a1914ee2f002d99dba5c7f7a698dd92e3492aa7 Mon Sep 17 00:00:00 2001
+From 61373d92eba1c8ad7cfcf5b8203c7d8167db2ec5 Mon Sep 17 00:00:00 2001
 From: xiajiang <xia1.jiang@intel.com>
 Date: Wed, 17 Feb 2016 13:59:14 -0500
-Subject: [PATCH 13/20] Enable the PRC compatibility package feature for PRC
+Subject: [PATCH 13/23] Enable the PRC compatibility package feature for PRC
  market
 
 In PRC market, some APKs are packed in non-standard way, that is,
@@ -139,7 +139,7 @@ index fee8345d166..9472a3e1c22 100644
      public static void removeNativeBinariesLI(String nativeLibraryPath) {
          if (nativeLibraryPath == null) return;
 diff --git a/core/jni/Android.bp b/core/jni/Android.bp
-index 0e31ab9c5fb..1c88ca5ebd2 100644
+index 872f26d1a14..6864c867148 100644
 --- a/core/jni/Android.bp
 +++ b/core/jni/Android.bp
 @@ -21,6 +21,7 @@ cc_library_shared {
@@ -1079,5 +1079,5 @@ index be82879c841..627adbf7c4f 100644
              (void *)com_android_internal_content_NativeLibraryHelper_hasRenderscriptBitcode},
  };
 -- 
-2.21.0
+2.25.1
 

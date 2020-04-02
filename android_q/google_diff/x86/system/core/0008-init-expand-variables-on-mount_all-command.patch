@@ -1,58 +1,53 @@
-From 8bb8a598157d63c7a9bc345206eba2636dfd34d3 Mon Sep 17 00:00:00 2001
+From 05a9f20e519f6c0b054c52e9212e1c966756c7f9 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Mon, 23 Nov 2015 17:57:37 +0800
-Subject: [PATCH 08/21] init: expand variables on mount_all command
+Subject: [PATCH 08/25] init: expand variables on mount_all command
 
 This allows mount_all to handle fstab.${ro.hardware} instead
 of hardcoding the file name.
 
 Change-Id: Ia7fb4e5a84dd50a46afdd4239b9b06204f449cfe
 ---
- init/builtins.cpp | 10 +++++++---
- 1 file changed, 7 insertions(+), 3 deletions(-)
+ init/builtins.cpp | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
 
 diff --git a/init/builtins.cpp b/init/builtins.cpp
-index 25f324ce5..18cc80286 100644
+index 200bfff7d..d89e8e8da 100644
 --- a/init/builtins.cpp
 +++ b/init/builtins.cpp
-@@ -501,6 +501,11 @@ static Result<int> handle_fstab(const std::string& fstabfile, std::function<int(
-             return Error() << "child aborted";
+@@ -660,11 +660,16 @@ static Result<void> do_mount_all(const BuiltinArguments& args) {
          }
-     } else if (pid == 0) {
-+        std::string filename_val;
-+        if (!expand_props(fstabfile, &filename_val)) {
-+            PLOG(ERROR) << "mount_all: cannot expand '" << fstabfile << "'";
-+            _exit(-1);
-+        }
-         /* child, call fs_mgr_[u]mount_all() */
+     }
  
-         // So we can always see what fs_mgr_[u]mount_all() does.
-@@ -508,7 +513,7 @@ static Result<int> handle_fstab(const std::string& fstabfile, std::function<int(
-         android::base::ScopedLogSeverity info(android::base::INFO);
++    auto filename_val = ExpandProps(fstab_file);
++    if (!filename_val) {
++        return Error() << "mount_all: cannot expand '" << fstab_file << "': " << filename_val.error();
++    }
++
+     std::string prop_name = "ro.boottime.init.mount_all."s + prop_post_fix;
+     android::base::Timer t;
  
-         Fstab fstab;
--        ReadFstabFromFile(fstabfile, &fstab);
-+        ReadFstabFromFile(filename_val, &fstab);
+     Fstab fstab;
+-    if (!ReadFstabFromFile(fstab_file, &fstab)) {
++    if (!ReadFstabFromFile(*filename_val, &fstab)) {
+         return Error() << "Could not read fstab";
+     }
  
-         int child_ret = func(&fstab);
+@@ -691,8 +696,13 @@ static Result<void> do_mount_all(const BuiltinArguments& args) {
  
-@@ -628,7 +633,6 @@ static Result<Success> queue_fs_event(int code) {
-  * not return.
-  */
- static Result<Success> do_mount_all(const BuiltinArguments& args) {
--    std::size_t na = 0;
-     bool import_rc = true;
-     bool queue_event = true;
-     int mount_mode = MOUNT_MODE_DEFAULT;
-@@ -636,7 +640,7 @@ static Result<Success> do_mount_all(const BuiltinArguments& args) {
-     std::size_t path_arg_end = args.size();
-     const char* prop_post_fix = "default";
+ /* umount_all <fstab> */
+ static Result<void> do_umount_all(const BuiltinArguments& args) {
++    auto filename_val = ExpandProps(args[1]);
++    if (!filename_val) {
++        return Error() << "umount_all: cannot expand '" << args[1] << "': " << filename_val.error();
++    }
++
+     Fstab fstab;
+-    if (!ReadFstabFromFile(args[1], &fstab)) {
++    if (!ReadFstabFromFile(*filename_val, &fstab)) {
+         return Error() << "Could not read fstab";
+     }
  
--    for (na = args.size() - 1; na > 1; --na) {
-+    for (std::size_t na = args.size() - 1; na > 1; --na) {
-         if (args[na] == "--early") {
-             path_arg_end = na;
-             queue_event = false;
 -- 
-2.21.0
+2.25.1
 

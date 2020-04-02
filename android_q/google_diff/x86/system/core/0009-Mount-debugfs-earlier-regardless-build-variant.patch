@@ -1,7 +1,7 @@
-From 18c04830cc6f9cc6c969b9dbe2a6aa10044567cc Mon Sep 17 00:00:00 2001
+From d2e10dc8a7d2cbdfcfed5a7f35b6f28c41993b77 Mon Sep 17 00:00:00 2001
 From: Ching Tzung Lin <ctlin@google.com>
 Date: Mon, 11 Jan 2016 13:00:22 -0800
-Subject: [PATCH 09/21] Mount debugfs earlier regardless build variant
+Subject: [PATCH 09/25] Mount debugfs earlier regardless build variant
 
 ag/835596 can be reverted after this CL is merged.
 
@@ -12,12 +12,12 @@ Change-Id: I453b0f1d08d822f8cd2d4d33f1c1b21f0d7f543a
  1 file changed, 2 insertions(+)
 
 diff --git a/rootdir/init.rc b/rootdir/init.rc
-index f85823cbb..7a434db28 100644
+index 731d9af77..51b561f69 100644
 --- a/rootdir/init.rc
 +++ b/rootdir/init.rc
-@@ -32,6 +32,8 @@ on early-init
-     # cgroup for system_server and surfaceflinger
-     mkdir /dev/memcg/system 0550 system system
+@@ -64,6 +64,8 @@ on early-init
+     # Mount bootstrap linker configuration as current
+     mount none /linkerconfig/bootstrap /linkerconfig bind rec
  
 +    mount debugfs /sys/kernel/debug /sys/kernel/debug mode=755
 +
@@ -25,5 +25,5 @@ index f85823cbb..7a434db28 100644
  
      # Run apexd-bootstrap so that APEXes that provide critical libraries
 -- 
-2.21.0
+2.25.1
 
