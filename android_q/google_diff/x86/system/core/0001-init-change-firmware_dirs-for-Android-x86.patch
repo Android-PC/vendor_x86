@@ -1,7 +1,7 @@
 From 425c8c53d087f66e251be155bbfd3b94d2b153e8 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Tue, 1 Feb 2011 15:47:03 +0800
-Subject: [PATCH 01/25] init: change firmware_dirs for Android-x86
+Subject: [PATCH 01/24] init: change firmware_dirs for Android-x86
 
 ---
  rootdir/ueventd.rc | 2 +-

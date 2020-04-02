@@ -1,7 +1,7 @@
-From 9607bbaf4a556a661c42f325940644d0d839d40d Mon Sep 17 00:00:00 2001
+From 90cfd85128149865524a4fa573e9f6c3a2cd4da6 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Wed, 15 Jan 2020 16:48:22 +0800
-Subject: [PATCH 24/25] Fix ro.build.fingerprint
+Subject: [PATCH 23/24] Fix ro.build.fingerprint
 
 Fix mismatched fingerprints, a stupid bug of Android 10.
 ---

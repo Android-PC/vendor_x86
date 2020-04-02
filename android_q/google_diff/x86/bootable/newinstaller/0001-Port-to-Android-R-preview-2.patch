@@ -1,12 +1,12 @@
-From 3846d0fad3cbf0a74b0a37ff1b6e8d178271db87 Mon Sep 17 00:00:00 2001
+From ff8432076aea4aaa04ab38150db7f3dd03b5f172 Mon Sep 17 00:00:00 2001
 From: Michael Goffioul <michael.goffioul@lincor.com>
 Date: Wed, 1 Apr 2020 17:49:33 -0400
 Subject: [PATCH] Port to Android R (preview 2)
 
 ---
  Android.mk  | 2 +-
- initrd/init | 4 +++-
- 2 files changed, 4 insertions(+), 2 deletions(-)
+ initrd/init | 7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/Android.mk b/Android.mk
 index 49219b9..51b9037 100644
@@ -22,7 +22,7 @@ index 49219b9..51b9037 100644
  define build-squashfs-target
  	$(hide) $(MKSQUASHFS) $(1) $(2) -noappend -comp gzip
 diff --git a/initrd/init b/initrd/init
-index 1e42668..0825ee3 100755
+index 1e42668..8350dfe 100755
 --- a/initrd/init
 +++ b/initrd/init
 @@ -169,8 +169,10 @@ ln -s ../system/lib/firmware ../system/lib/modules /lib
@@ -37,6 +37,16 @@ index 1e42668..0825ee3 100755
  fi
  
  if [ -n "$INSTALL" ]; then
+@@ -220,6 +222,9 @@ fi
+ # since it conflicts with Android's init
+ echo > /proc/sys/kernel/hotplug
+ 
++# Use correct modprobe location
++echo /system/bin/modprobe > /proc/sys/kernel/modprobe
++
+ export ANDROID_ROOT=/system
+ 
+ exec ${SWITCH:-switch_root} /android /init
 -- 
 2.25.1
 

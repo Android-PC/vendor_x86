@@ -1,7 +1,7 @@
-From d42380c6d10bb47511164135c99bde97feba2f79 Mon Sep 17 00:00:00 2001
+From 0ec2470eca7ce333c1180ce7dd3ff8c9d1af7bb7 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Fri, 3 Jan 2020 20:02:25 +0800
-Subject: [PATCH 23/25] sdcard: add back fuse support
+Subject: [PATCH 22/24] sdcard: add back fuse support
 
 We need fuse on tmpfs.
 ---

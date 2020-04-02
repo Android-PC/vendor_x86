@@ -1,7 +1,7 @@
-From c406078bab96e3b59313a5aa376c0837a38264fd Mon Sep 17 00:00:00 2001
+From 109b9d467a6343261d84103e00330e651adf071b Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Sat, 23 Nov 2019 09:30:10 +0800
-Subject: [PATCH 20/25] init: set ro.boot.hardware to product name
+Subject: [PATCH 19/24] init: set ro.boot.hardware to product name
 
 We don't set androidboot.hardware cmdline anymore.
 ---

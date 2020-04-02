@@ -1,7 +1,7 @@
-From b0b2f440f67561559dd7a2c7907c9073d7221c88 Mon Sep 17 00:00:00 2001
+From b332c5e60c5892df14f327c99e447c4ce3faed27 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Sat, 23 Nov 2019 15:39:21 +0800
-Subject: [PATCH 21/25] init: set default selinux mode to permissive
+Subject: [PATCH 20/24] init: set default selinux mode to permissive
 
 To support selinux enforcing mode, we still have a long way to go.
 Let's set the default mode to permissive.

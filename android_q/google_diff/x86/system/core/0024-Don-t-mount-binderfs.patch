@@ -1,17 +1,17 @@
-From dc79dee09ddd4206a989b65f23255a7086b315cf Mon Sep 17 00:00:00 2001
+From 3eb0ab04759713a91d24700f7b02fabf8170bf06 Mon Sep 17 00:00:00 2001
 From: Michael Goffioul <michael.goffioul@lincor.com>
 Date: Wed, 1 Apr 2020 18:04:44 -0400
-Subject: [PATCH 25/25] Don't mount binderfs
+Subject: [PATCH 24/24] Don't mount binderfs
 
 ---
  rootdir/init.rc | 24 ++++++++++++------------
  1 file changed, 12 insertions(+), 12 deletions(-)
 
 diff --git a/rootdir/init.rc b/rootdir/init.rc
-index 51b561f69..2eae92c9d 100644
+index df636fc6d..10a7e4995 100644
 --- a/rootdir/init.rc
 +++ b/rootdir/init.rc
-@@ -171,18 +171,18 @@ on init
+@@ -166,18 +166,18 @@ on init
      chmod 0770 /config/sdcardfs
      chown system package_info /config/sdcardfs
  

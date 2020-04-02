@@ -1,7 +1,7 @@
-From 456a04ad06a0574f052b456a19bdb37c60dd385c Mon Sep 17 00:00:00 2001
+From f5e6e09b5fae06142a6f20531b0da63d914413fe Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Wed, 11 Dec 2019 16:58:24 +0800
-Subject: [PATCH 22/25] libcutils: add probe_module
+Subject: [PATCH 21/24] libcutils: add probe_module
 
 The functions are used by several modules of Android-x86.
 ---

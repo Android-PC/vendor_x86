@@ -1,7 +1,7 @@
 From c07bb974f118155e8db221403d422b718c32e85d Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Tue, 12 Sep 2017 16:22:04 +0800
-Subject: [PATCH 13/25] init: don't bail out even no SELinux domain defined
+Subject: [PATCH 13/24] init: don't bail out even no SELinux domain defined
 
 ---
  init/service.cpp | 9 +++++++++
