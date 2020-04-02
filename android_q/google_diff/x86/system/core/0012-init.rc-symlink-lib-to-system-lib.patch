@@ -1,7 +1,7 @@
 From dc4bbf0d04f8358a4d16cf792604f1031f62ef71 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Fri, 29 Jul 2016 19:49:58 +0800
-Subject: [PATCH 12/24] init.rc: symlink /lib to /system/lib
+Subject: [PATCH 12/23] init.rc: symlink /lib to /system/lib
 
 Currently more linux drivers use request_firmware_nowait() to load
 firmwares. It requires the firmwares exist in the standard path.

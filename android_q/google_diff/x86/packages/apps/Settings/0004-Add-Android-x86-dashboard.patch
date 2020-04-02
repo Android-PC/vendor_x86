@@ -1,7 +1,7 @@
 From 72e165a004f3b4a919bfce2545a58e66571f1d1f Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Fri, 30 Mar 2018 17:40:06 +0800
-Subject: [PATCH 4/5] Add Android-x86 dashboard
+Subject: [PATCH 4/4] Add Android-x86 dashboard
 
 Add an option to enable or disable native bridge.
 More options will be added in the future.

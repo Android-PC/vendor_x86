@@ -1,7 +1,7 @@
 From 527a66f223ee0b661bd02a63d9ee5a0f4907d026 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Fri, 8 Aug 2014 18:17:04 +0800
-Subject: [PATCH 02/24] libutils: fix incorrect calculation in utf8_length()
+Subject: [PATCH 02/23] libutils: fix incorrect calculation in utf8_length()
  method
 
 The first character of utf-8 could be larger than 128. If use signed char

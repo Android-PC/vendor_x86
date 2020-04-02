@@ -1,7 +1,7 @@
 From f6c1967edf900041197374cad90ac5628bb28a63 Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Wed, 13 Dec 2017 01:23:34 +0800
-Subject: [PATCH 2/5] Add information about OpenGL driver version
+Subject: [PATCH 2/4] Add information about OpenGL driver version
 
 In order to get Mesa / OpenGL ES info, an EGL context is required.
 Without it, GLES20.glGetString returns NULL.

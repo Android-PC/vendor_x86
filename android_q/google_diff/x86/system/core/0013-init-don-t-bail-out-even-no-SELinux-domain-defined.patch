@@ -1,33 +1,24 @@
-From c07bb974f118155e8db221403d422b718c32e85d Mon Sep 17 00:00:00 2001
+From e46d19ed6b3a7a5bfc570d1a1db191432bdf316e Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Tue, 12 Sep 2017 16:22:04 +0800
-Subject: [PATCH 13/24] init: don't bail out even no SELinux domain defined
+Subject: [PATCH 13/23] init: don't bail out even no SELinux domain defined
 
 ---
- init/service.cpp | 9 +++++++++
- 1 file changed, 9 insertions(+)
+ init/service.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
 
 diff --git a/init/service.cpp b/init/service.cpp
-index b12d11aec..8625ff073 100644
+index b12d11aec..7ce73d3b6 100644
 --- a/init/service.cpp
 +++ b/init/service.cpp
-@@ -25,6 +25,9 @@
- #include <sys/time.h>
- #include <termios.h>
- #include <unistd.h>
-+#if defined(__ANDROID__)
-+#include <cutils/klog.h>
-+#endif
- 
- #include <android-base/file.h>
- #include <android-base/logging.h>
-@@ -86,11 +89,17 @@ static Result<std::string> ComputeContextFromExecutable(const std::string& servi
+@@ -86,11 +86,18 @@ static Result<std::string> ComputeContextFromExecutable(const std::string& servi
          free(new_con);
      }
      if (rc == 0 && computed_context == mycon.get()) {
 +#if defined(__ANDROID__)
-+        KLOG_WARNING("service", "File %s (labeled \"%s\") has incorrect label or no domain transition from %s to another SELinux domain defined.",
-+                service_path.c_str(), filecon.get(), mycon.get());
++        LOG(WARNING) << "File " << service_path << "(labeled \"" << filecon.get()
++                     << "\") has incorrect label or no domain transition from " << mycon.get()
++                     << " to another SELinux domain defined.";
 +        return "skip";
 +#else
          return Error() << "File " << service_path << "(labeled \"" << filecon.get()

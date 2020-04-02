@@ -1,0 +1,30 @@
+From 280b6e96dc6b771d1ca9f3deb0bb501b60ef3ee5 Mon Sep 17 00:00:00 2001
+From: Unknown <electrikjesus@gmail.com>
+Date: Thu, 2 Apr 2020 17:54:24 -0400
+Subject: [PATCH 2/2] Inherit vendor profile
+
+
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+index 8580206..09c07d7 100644
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -97,3 +97,5 @@ USE_XML_AUDIO_POLICY_CONF := 1
+ 
+ BUILD_BROKEN_USES_BUILD_HOST_EXECUTABLE := true
+ BUILD_BROKEN_USES_BUILD_HOST_STATIC_LIBRARY := true
++
++-include vendor/x86/config/BoardConfigAndroid_x86.mk
+diff --git a/device.mk b/device.mk
+index 3701e6e..fdd3433 100644
+--- a/device.mk
++++ b/device.mk
+@@ -118,3 +118,6 @@ $(call inherit-product-if-exists,$(if $(wildcard vendor/google/products/gms.mk),
+ $(call inherit-product-if-exists,$(LOCAL_PATH)/nativebridge/nativebridge.mk)
+ 
+ $(call inherit-product,$(if $(wildcard $(PRODUCT_DIR)packages.mk),$(PRODUCT_DIR),$(LOCAL_PATH)/)packages.mk)
++
++# Get the vendor profile
++$(call inherit-product,vendor/x86/config/android_x86.mk)
+-- 
+2.17.1
+

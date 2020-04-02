@@ -1,7 +1,7 @@
 From f4db2a07b8aa8aa62da23706ceea2fda52df798c Mon Sep 17 00:00:00 2001
 From: Chih-Wei Huang <cwhuang@linux.org.tw>
 Date: Fri, 8 Dec 2017 17:08:43 +0800
-Subject: [PATCH 1/5] Add Manufacturer to device info
+Subject: [PATCH 1/4] Add Manufacturer to device info
 
 Add an item to display manufacturer in hardware info page.
 ---
