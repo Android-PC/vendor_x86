@@ -140,6 +140,6 @@ PRODUCT_COPY_FILES += $(call addon-copy-to-system,widevine,vendor)
 endif
 
 # Bootanimation
-PRODUCT_COPY_FILES += \
-    vendor/x86/bootanimation/bootanimation.zip:system/media/bootanimation.zip
+#PRODUCT_COPY_FILES += \
+#    vendor/x86/bootanimation/bootanimation.zip:system/media/bootanimation.zip
     
